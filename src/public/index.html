@@ -23,16 +23,16 @@
     }
     header {
       text-align: center;
-      margin-bottom: 24px;
+      margin-bottom: 16px;
     }
     h1 {
       color: #0986e6;
-      font-size: 1.6rem;
-      margin-bottom: 4px;
+      font-size: 1.4rem;
+      margin-bottom: 2px;
     }
     .subtitle {
       color: #666;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
     }
 
     /* Event selector tabs */
@@ -71,33 +71,33 @@
     /* Race selector tabs */
     .race-tabs {
       display: flex;
-      gap: 12px;
-      margin-bottom: 20px;
+      gap: 8px;
+      margin-bottom: 16px;
     }
     .race-tab {
       flex: 1;
-      padding: 20px 16px;
+      padding: 14px 12px;
       border: none;
-      border-radius: 12px;
+      border-radius: 10px;
       cursor: pointer;
-      font-size: 1rem;
+      font-size: 0.95rem;
       font-weight: 600;
       transition: all 0.2s;
       text-align: center;
     }
     .race-tab .race-icon {
-      font-size: 2rem;
+      font-size: 1.6rem;
       display: block;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .race-tab .race-name {
       display: block;
-      font-size: 1.1rem;
+      font-size: 1rem;
     }
     .race-tab .race-count {
       display: block;
-      font-size: 0.8rem;
-      margin-top: 4px;
+      font-size: 0.75rem;
+      margin-top: 3px;
       opacity: 0.8;
     }
     .race-tab.hm {
@@ -120,15 +120,15 @@
     .status-bar {
       background: #fff;
       border-radius: 8px;
-      padding: 12px 16px;
-      margin-bottom: 16px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
       display: flex;
       justify-content: center;
       align-items: center;
       flex-wrap: wrap;
-      gap: 16px;
+      gap: 12px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      font-size: 0.85rem;
+      font-size: 0.75rem;
     }
     .status-item {
       color: #666;
@@ -255,6 +255,22 @@
       user-select: none;
       position: relative;
     }
+    .time-header, .pace-header {
+      font-weight: 700;
+      color: #333;
+    }
+    .time-cell, .pace-cell {
+      font-weight: 600;
+      font-size: 1rem;
+      color: #0986e6;
+      font-family: monospace;
+    }
+    .time-cell {
+      color: #1e40af;
+    }
+    .pace-cell {
+      color: #166534;
+    }
     th:hover {
       background: #e9ecef;
     }
@@ -359,20 +375,20 @@
     /* Mode toggle */
     .mode-tabs {
       display: flex;
-      gap: 12px;
-      margin-bottom: 16px;
+      gap: 8px;
+      margin-bottom: 12px;
       background: #fff;
       border-radius: 8px;
-      padding: 8px;
+      padding: 6px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     .mode-tab {
       flex: 1;
-      padding: 10px 16px;
+      padding: 8px 12px;
       border: none;
       border-radius: 6px;
       cursor: pointer;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 600;
       transition: all 0.2s;
       text-align: center;
@@ -575,16 +591,29 @@
     }
 
     @media (max-width: 600px) {
-      h1 { font-size: 1.3rem; }
-      .race-tab { padding: 16px 12px; }
-      .race-tab .race-icon { font-size: 1.5rem; }
-      .race-tab .race-name { font-size: 1rem; }
+      header { margin-bottom: 12px; }
+      h1 { font-size: 1.2rem; margin-bottom: 1px; }
+      .subtitle { font-size: 0.8rem; }
+      .race-tabs { gap: 6px; margin-bottom: 12px; }
+      .race-tab { padding: 12px 8px; }
+      .race-tab .race-icon { font-size: 1.4rem; margin-bottom: 4px; }
+      .race-tab .race-name { font-size: 0.9rem; }
+      .race-tab .race-count { font-size: 0.7rem; }
+      .status-bar { padding: 6px 10px; margin-bottom: 10px; gap: 8px; font-size: 0.7rem; }
+      .mode-tabs { gap: 6px; margin-bottom: 10px; padding: 4px; }
+      .mode-tab { padding: 6px 10px; font-size: 0.8rem; }
+      .search-box { margin-bottom: 12px; padding: 12px; }
       .search-input { font-size: 1rem; padding: 12px 14px; }
-      th, td { padding: 10px 8px; font-size: 0.85rem; }
-      .status-bar { flex-direction: column; gap: 8px; }
+      .search-hint { font-size: 0.75rem; }
+      th, td { padding: 10px 6px; font-size: 0.8rem; }
+      .time-cell, .pace-cell { font-size: 0.9rem; }
+      .status-bar { flex-direction: column; gap: 6px; }
       .results-header { flex-direction: column; align-items: flex-start; }
-      table { font-size: 0.85rem; }
+      table { font-size: 0.8rem; }
       th.sortable::after { display: none; }
+      .mobile-hide {
+        display: none;
+      }
       .search-result-item-content {
         grid-template-columns: 50px 1fr 80px;
         gap: 8px;
@@ -598,6 +627,8 @@
         flex-direction: column;
         align-items: flex-start;
       }
+      .selected-panel { padding: 12px; margin-bottom: 12px; }
+      .selected-item { padding: 6px 10px; font-size: 0.8rem; }
     }
   </style>
 </head>
@@ -726,7 +757,7 @@
     let searchQuery = '';
     let currentMode = 'multi';
     let selectedAthletes = [];
-    let rankingSort = { column: 'position', direction: 'asc' };
+    let rankingSort = { column: 'finishTime', direction: 'asc' };
 
     // Event configuration
     const eventConfig = {
@@ -961,6 +992,50 @@
       if (updateURL) updateURLFunc();
     };
 
+    // Calculate pace from finish time
+    function calculatePace(finishTime, raceType) {
+      if (!finishTime || finishTime === '-') return '-';
+      
+      // Parse time string (format: "H:MM:SS" or "MM:SS")
+      const parts = finishTime.split(':').map(p => parseInt(p, 10));
+      if (parts.length < 2) return '-';
+      
+      let totalSeconds = 0;
+      if (parts.length === 3) {
+        // H:MM:SS format
+        totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+      } else if (parts.length === 2) {
+        // MM:SS format
+        totalSeconds = parts[0] * 60 + parts[1];
+      } else {
+        return '-';
+      }
+      
+      if (isNaN(totalSeconds) || totalSeconds <= 0) return '-';
+      
+      // Distance in km
+      const distance = raceType === 'hm' ? 21.0975 : 10;
+      
+      // Calculate pace in seconds per km
+      const paceSeconds = totalSeconds / distance;
+      const minutes = Math.floor(paceSeconds / 60);
+      const seconds = Math.round(paceSeconds % 60);
+      
+      return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
+    }
+
+    // Parse time string to seconds for sorting
+    function parseTimeToSeconds(timeStr) {
+      if (!timeStr || timeStr === '-') return Infinity;
+      const parts = timeStr.split(':').map(p => parseInt(p, 10));
+      if (parts.length === 3) {
+        return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      } else if (parts.length === 2) {
+        return parts[0] * 60 + parts[1];
+      }
+      return Infinity;
+    }
+
     // Add athlete to selection
     function addAthleteToSelection(athlete) {
       // Check if already selected (by name and race)
@@ -969,10 +1044,13 @@
       );
       
       if (!isSelected) {
+        const raceType = athlete.race === 'Half Marathon' ? 'hm' : 'tenk';
+        const pace = calculatePace(athlete.finishTime, raceType);
         selectedAthletes.push({
           name: athlete.name,
           position: athlete.position,
           finishTime: athlete.finishTime,
+          pace: pace,
           bibNumber: athlete.bibNumber,
           gender: athlete.gender,
           category: athlete.category,
@@ -1072,6 +1150,14 @@
         return;
       }
       
+      // Calculate pace for athletes that don't have it yet (for backward compatibility)
+      filtered.forEach(athlete => {
+        if (!athlete.pace) {
+          const raceType = athlete.race === 'Half Marathon' ? 'hm' : 'tenk';
+          athlete.pace = calculatePace(athlete.finishTime, raceType);
+        }
+      });
+      
       // Sort athletes
       let sorted = [...filtered];
       if (rankingSort.column) {
@@ -1083,6 +1169,21 @@
           if (rankingSort.column === 'position') {
             aVal = parseInt(aVal) || 0;
             bVal = parseInt(bVal) || 0;
+          } else if (rankingSort.column === 'finishTime') {
+            // Parse time strings for proper numeric sorting
+            aVal = parseTimeToSeconds(aVal);
+            bVal = parseTimeToSeconds(bVal);
+          } else if (rankingSort.column === 'pace') {
+            // Parse pace strings (extract minutes and seconds before /km)
+            const aPace = aVal ? aVal.replace('/km', '').split(':') : [];
+            const bPace = bVal ? bVal.replace('/km', '').split(':') : [];
+            if (aPace.length === 2 && bPace.length === 2) {
+              aVal = parseInt(aPace[0], 10) * 60 + parseInt(aPace[1], 10);
+              bVal = parseInt(bPace[0], 10) * 60 + parseInt(bPace[1], 10);
+            } else {
+              aVal = Infinity;
+              bVal = Infinity;
+            }
           } else {
             aVal = String(aVal || '').toLowerCase();
             bVal = String(bVal || '').toLowerCase();
@@ -1099,11 +1200,12 @@
           <thead>
             <tr>
               <th class="sortable ${rankingSort.column === 'position' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('position')">Pos</th>
-              <th class="sortable ${rankingSort.column === 'bibNumber' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('bibNumber')">Bib</th>
               <th class="sortable ${rankingSort.column === 'name' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('name')">Name</th>
-              <th class="sortable ${rankingSort.column === 'gender' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('gender')">Gender</th>
-              <th class="sortable ${rankingSort.column === 'category' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('category')">Category</th>
-              <th class="sortable ${rankingSort.column === 'finishTime' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('finishTime')">Time</th>
+              <th class="sortable time-header ${rankingSort.column === 'finishTime' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('finishTime')">Time</th>
+              <th class="sortable pace-header ${rankingSort.column === 'pace' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('pace')">Pace</th>
+              <th class="sortable mobile-hide ${rankingSort.column === 'bibNumber' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('bibNumber')">Bib</th>
+              <th class="sortable mobile-hide ${rankingSort.column === 'gender' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('gender')">Gender</th>
+              <th class="sortable mobile-hide ${rankingSort.column === 'category' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('category')">Category</th>
             </tr>
           </thead>
           <tbody>
@@ -1113,11 +1215,12 @@
         html += `
           <tr>
             <td>${athlete.position}</td>
-            <td>${athlete.bibNumber || '-'}</td>
             <td class="name-cell">${escapeHtml(athlete.name)}</td>
-            <td>${athlete.gender || '-'}</td>
-            <td>${athlete.category || '-'}</td>
-            <td>${athlete.finishTime || '-'}</td>
+            <td class="time-cell">${athlete.finishTime || '-'}</td>
+            <td class="pace-cell">${athlete.pace || '-'}</td>
+            <td class="mobile-hide">${athlete.bibNumber || '-'}</td>
+            <td class="mobile-hide">${athlete.gender || '-'}</td>
+            <td class="mobile-hide">${athlete.category || '-'}</td>
           </tr>
         `;
       }
