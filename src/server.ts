@@ -5,7 +5,7 @@ import * as dotenv from 'dotenv';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import Fuse, { type IFuseOptions } from 'fuse.js';
-import { loadResults, getResultsFilePath, scrapeAllResults, scrapePlus500Results, saveResults, type EventId } from './scraper.js';
+import { loadResults, getResultsFilePath, scrapeAllResults, scrapePlus500Results, scrapeEvoChipResults, saveResults, type EventId } from './scraper.js';
 import { loadState, monitor, formatStatusMessage } from './monitor.js';
 import { sendNotification, isTwilioConfigured } from './notifications/index.js';
 import type { RaceResult } from './types.js';
@@ -85,10 +85,10 @@ app.get('/api/health', (_req, res) => {
 });
 
 // API: Get current status
-app.get('/api/status', (req, res) => {
-  const state = loadState();
+app.get('/api/status', async (req, res) => {
+  const state = await loadState();
   const eventId = getEventId(req);
-  const data = loadResults(eventId);
+  const data = await loadResults(eventId);
 
   res.json({
     monitor: state,
@@ -103,7 +103,7 @@ app.get('/api/status', (req, res) => {
 });
 
 // API: Search results
-app.get('/api/search', searchLimiter, (req, res) => {
+app.get('/api/search', searchLimiter, async (req, res) => {
   // Input validation
   let query = (req.query.q as string || '').trim();
   
@@ -120,7 +120,7 @@ app.get('/api/search', searchLimiter, (req, res) => {
   }
 
   const eventId = getEventId(req);
-  const data = loadResults(eventId);
+  const data = await loadResults(eventId);
   if (!data) {
     return res.json({
       query,
@@ -171,9 +171,9 @@ app.get('/api/search', searchLimiter, (req, res) => {
 });
 
 // API: Download results as JSON
-app.get('/api/download/json', (req, res) => {
+app.get('/api/download/json', async (req, res) => {
   const eventId = getEventId(req);
-  const data = loadResults(eventId);
+  const data = await loadResults(eventId);
   if (!data) {
     return res.status(404).json({ error: 'No results available' });
   }
@@ -209,9 +209,9 @@ app.get('/api/download/json', (req, res) => {
 });
 
 // API: Download results as CSV
-app.get('/api/download/csv', (req, res) => {
+app.get('/api/download/csv', async (req, res) => {
   const eventId = getEventId(req);
-  const data = loadResults(eventId);
+  const data = await loadResults(eventId);
   if (!data) {
     return res.status(404).json({ error: 'No results available' });
   }
@@ -258,9 +258,9 @@ app.get('/api/download/csv', (req, res) => {
 });
 
 // API: Get all results (for bulk access)
-app.get('/api/results', (req, res) => {
+app.get('/api/results', async (req, res) => {
   const eventId = getEventId(req);
-  const data = loadResults(eventId);
+  const data = await loadResults(eventId);
   if (!data) {
     return res.status(404).json({ error: 'No results available' });
   }
@@ -294,7 +294,7 @@ app.post('/api/monitor', async (req, res) => {
       console.log('   📥 Auto-scraping results...');
       try {
         const data = await scrapeAllResults(targetUrl);
-        saveResults(data);
+        await saveResults(data);
         const total = data.categories.halfMarathon.length + data.categories.tenKm.length;
         scrapeResult = { success: true, total, halfMarathon: data.categories.halfMarathon.length, tenKm: data.categories.tenKm.length };
         message += `\n\n📊 Auto-scraped ${total} results (${data.categories.halfMarathon.length} HM, ${data.categories.tenKm.length} 10K)`;
@@ -352,6 +352,56 @@ app.get('/api/monitor', async (req, res) => {
   return app._router.handle(req, res, () => {});
 });
 
+// API: Scrape EvoChip results
+app.post('/api/scrape/evochip', async (req, res) => {
+  // Simple auth via secret key (optional, same pattern as monitor)
+  const authKey = req.headers['x-monitor-key'] || req.query.key;
+  const expectedKey = process.env.MONITOR_SECRET;
+
+  if (expectedKey && authKey !== expectedKey) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const evoChipUrl = req.body.url || process.env.EVOCHIP_URL || 
+    'https://evochip.hu/results/result.php?distance=hm&category=none&timepoint=none&eventid=DubaiCreekHalf26DAd&year=&lang=en&css=evochip.css&iframe=0&mobile=0&viewport=device-width';
+
+  console.log(`\n📥 EvoChip scrape triggered: ${new Date().toISOString()}`);
+  console.log(`   URL: ${evoChipUrl}`);
+
+  try {
+    const data = await scrapeEvoChipResults(evoChipUrl);
+    await saveResults(data, 'dcs');
+    
+    const total = data.categories.halfMarathon.length + data.categories.tenKm.length;
+    console.log(`   ✅ Scraped ${total} results (${data.categories.halfMarathon.length} HM, ${data.categories.tenKm.length} 10K)`);
+
+    return res.json({
+      success: true,
+      total,
+      halfMarathon: data.categories.halfMarathon.length,
+      tenKm: data.categories.tenKm.length,
+      scrapedAt: data.scrapedAt,
+      eventName: data.eventName,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`   ❌ EvoChip scrape failed: ${errorMessage}`);
+    return res.status(500).json({ 
+      success: false, 
+      error: errorMessage,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Also support GET for easy testing
+app.get('/api/scrape/evochip', async (req, res) => {
+  // Redirect to POST handler
+  req.method = 'POST';
+  return app._router.handle(req, res, () => {});
+});
+
 // API: Heartbeat - send periodic "still monitoring" notification
 app.post('/api/heartbeat', async (req, res) => {
   // Simple auth via secret key
@@ -388,8 +438,8 @@ app.post('/api/heartbeat', async (req, res) => {
   console.log(`   📱 Twilio configured, sending to: ${notifyWhatsapp}`);
 
   // Get current status for the heartbeat message
-  const state = loadState();
-  const data = loadResults();
+  const state = await loadState();
+  const data = await loadResults();
   const resultCount = data
     ? data.categories.halfMarathon.length + data.categories.tenKm.length
     : 0;

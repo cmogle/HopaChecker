@@ -1,26 +1,10 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import * as fs from 'fs';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
-import type { RaceResult, RaceData } from './types.js';
+import type { RaceResult, RaceData, EventId } from './types.js';
+import { saveResults as storageSaveResults, loadResults as storageLoadResults, getStorageInfo } from './storage/index.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Use DATA_PATH env var for persistent storage (e.g., Render disk), fallback to local
-const DATA_DIR = process.env.DATA_PATH || path.join(__dirname, '..', 'data');
-const RESULTS_FILE = path.join(DATA_DIR, 'results.json');
-
-// Event identifiers
-export type EventId = 'dcs' | 'plus500';
-
-export function getResultsFilePath(eventId: EventId = 'dcs'): string {
-  if (eventId === 'plus500') {
-    return path.join(DATA_DIR, 'results-plus500.json');
-  }
-  return RESULTS_FILE; // Default to 'dcs'
-}
+// Re-export EventId type for backwards compatibility
+export type { EventId };
 
 // Hopasports API configuration - extracted from the page HTML
 interface RaceConfig {
@@ -331,28 +315,216 @@ export async function scrapePlus500Results(url: string = 'https://results.hopasp
   return raceData;
 }
 
-export function saveResults(data: RaceData, eventId: EventId = 'dcs'): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+export async function scrapeEvoChipResults(url: string): Promise<RaceData> {
+  console.log(`Fetching EvoChip page: ${url}`);
+  
+  const halfMarathon: RaceResult[] = [];
+  const tenKm: RaceResult[] = [];
+
+  // Parse the URL to extract base parameters
+  const urlObj = new URL(url);
+  const distance = urlObj.searchParams.get('distance') || 'hm';
+  const eventId = urlObj.searchParams.get('eventid') || '';
+
+  // Fetch first page to determine total pages
+  const firstPageHtml = await fetchPage(url);
+  const $ = cheerio.load(firstPageHtml);
+
+  // Extract total pages from pagination
+  let totalPages = 1;
+  const paginationLinks = $('a[href*="page="]');
+  const pageNumbers: number[] = [];
+  
+  paginationLinks.each((_, el) => {
+    const href = $(el).attr('href');
+    if (href) {
+      const pageMatch = href.match(/[?&]page=(\d+)/);
+      if (pageMatch) {
+        const pageNum = parseInt(pageMatch[1], 10);
+        if (!isNaN(pageNum)) {
+          pageNumbers.push(pageNum);
+        }
+      }
+    }
+  });
+
+  if (pageNumbers.length > 0) {
+    totalPages = Math.max(...pageNumbers);
+  } else {
+    // Try to find "Last" link or total count
+    const lastLink = $('a:contains("Last")');
+    if (lastLink.length > 0) {
+      const lastHref = lastLink.attr('href');
+      if (lastHref) {
+        const pageMatch = lastHref.match(/[?&]page=(\d+)/);
+        if (pageMatch) {
+          totalPages = parseInt(pageMatch[1], 10);
+        }
+      }
+    }
   }
-  const filePath = getResultsFilePath(eventId);
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-  console.log(`Results saved to: ${filePath}`);
+
+  console.log(`Found ${totalPages} page(s) to scrape`);
+
+  // Scrape all pages
+  for (let page = 1; page <= totalPages; page++) {
+    let pageUrl = url;
+    if (page > 1) {
+      // Add or update page parameter
+      const urlObj = new URL(url);
+      urlObj.searchParams.set('page', page.toString());
+      pageUrl = urlObj.toString();
+    }
+
+    console.log(`  Scraping page ${page}/${totalPages}...`);
+    const pageHtml = await fetchPage(pageUrl);
+    const $page = cheerio.load(pageHtml);
+
+    // Find the results table - look for table with Bib and Name columns
+    const tables = $page('table');
+    let table = $page();
+    
+    // Find table that contains results (has Bib and Name headers)
+    tables.each((_, el) => {
+      const firstRow = $page(el).find('tr').first();
+      const headerText = firstRow.text().toLowerCase();
+      if (headerText.includes('bib') && headerText.includes('name')) {
+        table = $page(el);
+        return false; // Break
+      }
+    });
+
+    if (table.length === 0) {
+      console.log(`    No results table found on page ${page}`);
+      continue;
+    }
+
+    // Find header row to determine column indices
+    const headerRow = table.find('tr').first();
+    const headerCells = headerRow.find('th, td');
+    const columnMap: Record<string, number> = {};
+    
+    headerCells.each((index, cell) => {
+      const headerText = $page(cell).text().toLowerCase().trim();
+      if (headerText.includes('bib')) columnMap.bib = index;
+      if (headerText.includes('name')) columnMap.name = index;
+      if (headerText.includes('country')) columnMap.country = index;
+      if (headerText.includes('5km') || headerText === '5km') columnMap.time5km = index;
+      if (headerText.includes('10km') || headerText === '10km') columnMap.time10km = index;
+      if (headerText.includes('15km') || headerText === '15km') columnMap.time15km = index;
+      if (headerText.includes('finish')) columnMap.finish = index;
+      if (headerText.includes('gender') && headerText.includes('rank')) columnMap.genderRank = index;
+      if ((headerText.includes('cat') || headerText.includes('category')) && headerText.includes('rank')) columnMap.catRank = index;
+    });
+
+    // Parse table rows (skip header row)
+    const rows = table.find('tr').slice(1); // Skip first row (header)
+    let rowIndex = 0;
+    
+    rows.each((_, row) => {
+      const cells = $page(row).find('td');
+      if (cells.length < 3) return; // Skip rows with insufficient data
+
+      // Extract data from cells using column map
+      const bibText = columnMap.bib !== undefined ? $page(cells.eq(columnMap.bib)).text().trim() : '';
+      const nameText = columnMap.name !== undefined ? $page(cells.eq(columnMap.name)).text().trim() : '';
+      
+      // Skip if name is empty (likely an empty row)
+      if (!nameText || nameText === '') {
+        return;
+      }
+
+      const countryText = columnMap.country !== undefined ? $page(cells.eq(columnMap.country)).text().trim() : '';
+      const time5km = columnMap.time5km !== undefined ? $page(cells.eq(columnMap.time5km)).text().trim() : '';
+      const time10km = columnMap.time10km !== undefined ? $page(cells.eq(columnMap.time10km)).text().trim() : '';
+      const time15km = columnMap.time15km !== undefined ? $page(cells.eq(columnMap.time15km)).text().trim() : '';
+      const finishTime = columnMap.finish !== undefined ? $page(cells.eq(columnMap.finish)).text().trim() : '';
+      const genderRankText = columnMap.genderRank !== undefined ? $page(cells.eq(columnMap.genderRank)).text().trim() : '';
+      const catRankText = columnMap.catRank !== undefined ? $page(cells.eq(columnMap.catRank)).text().trim() : '';
+
+      // Calculate position based on current results count + row index
+      const currentCount = distance === '10k' || distance === '10km' ? tenKm.length : halfMarathon.length;
+      const position = currentCount + rowIndex + 1;
+
+      // Parse gender rank and category rank
+      const genderPosition = genderRankText && genderRankText !== '-' && genderRankText !== '' 
+        ? parseInt(genderRankText, 10) 
+        : undefined;
+      const categoryPosition = catRankText && catRankText !== '-' && catRankText !== '' 
+        ? parseInt(catRankText, 10) 
+        : undefined;
+
+      // Gender and category are not in the table, leave empty
+      const gender = '';
+      const category = '';
+
+      const result: RaceResult = {
+        position,
+        bibNumber: bibText,
+        name: nameText,
+        gender,
+        category,
+        finishTime: finishTime || '-',
+        genderPosition,
+        categoryPosition,
+      };
+
+      // Categorize based on distance parameter
+      if (distance === '10k' || distance === '10km') {
+        tenKm.push(result);
+      } else {
+        // Default to half marathon
+        halfMarathon.push(result);
+      }
+
+      rowIndex++;
+    });
+
+    console.log(`    Found ${rowIndex} results on page ${page}`);
+  }
+
+  // Extract event name from the page
+  let eventName = 'Marina Home Dubai Creek Striders Half Marathon & 10km 2026';
+  const titleMatch = $('h1, h2, .event-title, title').first().text();
+  if (titleMatch) {
+    eventName = titleMatch.trim();
+  }
+
+  const raceData: RaceData = {
+    eventName,
+    eventDate: '2026-01-11', // Update if we can extract from page
+    url,
+    scrapedAt: new Date().toISOString(),
+    categories: {
+      halfMarathon,
+      tenKm,
+    },
+  };
+
+  console.log(`✅ Scraping complete: ${halfMarathon.length} HM, ${tenKm.length} 10K`);
+  return raceData;
+}
+
+// Re-export storage functions for backwards compatibility
+export async function saveResults(data: RaceData, eventId: EventId = 'dcs'): Promise<void> {
+  await storageSaveResults(data, eventId);
+}
+
+export async function loadResults(eventId: EventId = 'dcs'): Promise<RaceData | null> {
+  return await storageLoadResults(eventId);
+}
+
+// Legacy function for compatibility - returns storage info instead of file path
+export function getResultsFilePath(eventId: EventId = 'dcs'): string {
+  const info = getStorageInfo();
+  if (info.mode === 's3') {
+    return `s3://${info.location}/${eventId === 'plus500' ? 'results-plus500.json' : 'results.json'}`;
+  }
+  // For filesystem mode, return the path (legacy behavior)
+  return info.location;
 }
 
 export function getDataDir(): string {
-  return DATA_DIR;
-}
-
-export function loadResults(eventId: EventId = 'dcs'): RaceData | null {
-  try {
-    const filePath = getResultsFilePath(eventId);
-    if (fs.existsSync(filePath)) {
-      const data = fs.readFileSync(filePath, 'utf-8');
-      return JSON.parse(data);
-    }
-  } catch {
-    // File doesn't exist or is corrupted
-  }
-  return null;
+  const info = getStorageInfo();
+  return info.location;
 }

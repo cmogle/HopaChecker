@@ -3,7 +3,7 @@ import { Command } from 'commander';
 import * as dotenv from 'dotenv';
 import cron from 'node-cron';
 import { monitor, checkSiteStatus, formatStatusMessage, loadState } from './monitor.js';
-import { scrapeAllResults, saveResults, loadResults, getResultsFilePath } from './scraper.js';
+import { scrapeAllResults, scrapeEvoChipResults, saveResults, loadResults, getResultsFilePath } from './scraper.js';
 import { searchFromFile, searchByName, formatSearchResults } from './search.js';
 import { sendNotification, isTwilioConfigured } from './notifications/index.js';
 import type { Config } from './types.js';
@@ -54,7 +54,7 @@ program
       console.log(`   Error: ${status.error || 'HTTP error'}`);
     }
 
-    const state = loadState();
+    const state = await loadState();
     console.log(`\n📊 Monitor State:`);
     console.log(`   Last Status: ${state.lastStatus}`);
     console.log(`   Last Checked: ${new Date(state.lastChecked).toLocaleString()}`);
@@ -76,7 +76,7 @@ program
       console.log('\n📥 Auto-scraping results...');
       try {
         const data = await scrapeAllResults(config.targetUrl);
-        saveResults(data);
+        await saveResults(data);
         const total = data.categories.halfMarathon.length + data.categories.tenKm.length;
         console.log(`✅ Scraped ${total} results`);
         return `\n\n📊 Auto-scraped ${total} results (${data.categories.halfMarathon.length} HM, ${data.categories.tenKm.length} 10K)`;
@@ -173,7 +173,7 @@ program
 
     try {
       const data = await scrapeAllResults(config.targetUrl);
-      saveResults(data);
+      await saveResults(data);
 
       console.log(`\n✅ Scraping complete!`);
       console.log(`   Half Marathon: ${data.categories.halfMarathon.length} results`);
@@ -183,6 +183,31 @@ program
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`\n❌ Scraping failed: ${errorMessage}`);
       console.log('   The site may be down or the page structure may have changed.');
+    }
+  });
+
+// Scrape EvoChip command
+program
+  .command('scrape:evochip')
+  .description('Scrape results from evochip.hu alternative site')
+  .option('-u, --url <url>', 'EvoChip results URL', 'https://evochip.hu/results/result.php?distance=hm&category=none&timepoint=none&eventid=DubaiCreekHalf26DAd&year=&lang=en&css=evochip.css&iframe=0&mobile=0&viewport=device-width')
+  .action(async (options) => {
+    const evoChipUrl = options.url || process.env.EVOCHIP_URL || 'https://evochip.hu/results/result.php?distance=hm&category=none&timepoint=none&eventid=DubaiCreekHalf26DAd&year=&lang=en&css=evochip.css&iframe=0&mobile=0&viewport=device-width';
+
+    try {
+      console.log(`\n📥 Scraping EvoChip results from: ${evoChipUrl}\n`);
+      const data = await scrapeEvoChipResults(evoChipUrl);
+      await saveResults(data, 'dcs');
+
+      console.log(`\n✅ EvoChip scraping complete!`);
+      console.log(`   Half Marathon: ${data.categories.halfMarathon.length} results`);
+      console.log(`   10km: ${data.categories.tenKm.length} results`);
+      console.log(`   Saved to: ${getResultsFilePath('dcs')}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`\n❌ EvoChip scraping failed: ${errorMessage}`);
+      console.log('   The site may be down or the page structure may have changed.');
+      process.exit(1);
     }
   });
 
@@ -199,7 +224,7 @@ program
     if (options.race === 'half') raceType = 'halfMarathon';
     if (options.race === '10k') raceType = 'tenKm';
 
-    const data = loadResults();
+    const data = await loadResults();
     if (!data) {
       console.log('\n❌ No results data found.');
       console.log('   Run "npm run scrape" first to fetch results.');
