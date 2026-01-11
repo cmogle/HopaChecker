@@ -8,6 +8,11 @@ export interface RaceResult {
   pace?: string;
   genderPosition?: number;
   categoryPosition?: number;
+  country?: string;
+  time5km?: string;
+  time10km?: string;
+  time13km?: string;
+  time15km?: string;
 }
 
 export interface RaceData {

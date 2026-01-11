@@ -412,6 +412,7 @@ export async function scrapeEvoChipResults(url: string): Promise<RaceData> {
       if (headerText.includes('country')) columnMap.country = index;
       if (headerText.includes('5km') || headerText === '5km') columnMap.time5km = index;
       if (headerText.includes('10km') || headerText === '10km') columnMap.time10km = index;
+      if (headerText.includes('13km') || headerText === '13km') columnMap.time13km = index;
       if (headerText.includes('15km') || headerText === '15km') columnMap.time15km = index;
       if (headerText.includes('finish')) columnMap.finish = index;
       if (headerText.includes('gender') && headerText.includes('rank')) columnMap.genderRank = index;
@@ -438,6 +439,7 @@ export async function scrapeEvoChipResults(url: string): Promise<RaceData> {
       const countryText = columnMap.country !== undefined ? $page(cells.eq(columnMap.country)).text().trim() : '';
       const time5km = columnMap.time5km !== undefined ? $page(cells.eq(columnMap.time5km)).text().trim() : '';
       const time10km = columnMap.time10km !== undefined ? $page(cells.eq(columnMap.time10km)).text().trim() : '';
+      const time13km = columnMap.time13km !== undefined ? $page(cells.eq(columnMap.time13km)).text().trim() : '';
       const time15km = columnMap.time15km !== undefined ? $page(cells.eq(columnMap.time15km)).text().trim() : '';
       const finishTime = columnMap.finish !== undefined ? $page(cells.eq(columnMap.finish)).text().trim() : '';
       const genderRankText = columnMap.genderRank !== undefined ? $page(cells.eq(columnMap.genderRank)).text().trim() : '';
@@ -468,6 +470,11 @@ export async function scrapeEvoChipResults(url: string): Promise<RaceData> {
         finishTime: finishTime || '-',
         genderPosition,
         categoryPosition,
+        country: countryText || undefined,
+        time5km: time5km || undefined,
+        time10km: time10km || undefined,
+        time13km: time13km || undefined,
+        time15km: time15km || undefined,
       };
 
       // Categorize based on distance parameter

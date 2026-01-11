@@ -86,9 +86,16 @@ export function formatSearchResult(searchResult: SearchResult): string {
   output += `\n   Race: ${raceLabel}`;
   output += `\n   Position: ${result.position}`;
   if (result.bibNumber) output += `\n   Bib: ${result.bibNumber}`;
+  if (result.country) output += `\n   Country: ${result.country}`;
   if (result.finishTime) output += `\n   Time: ${result.finishTime}`;
+  if (result.time5km) output += `\n   5km: ${result.time5km}`;
+  if (result.time10km) output += `\n   10km: ${result.time10km}`;
+  if (result.time13km) output += `\n   13km: ${result.time13km}`;
+  if (result.time15km) output += `\n   15km: ${result.time15km}`;
   if (result.pace) output += `\n   Pace: ${result.pace}`;
   if (result.category) output += `\n   Category: ${result.category}`;
+  if (result.genderPosition !== undefined) output += `\n   Gender Position: ${result.genderPosition}`;
+  if (result.categoryPosition !== undefined) output += `\n   Category Position: ${result.categoryPosition}`;
   output += `\n   Match Confidence: ${confidence}%`;
 
   return output;

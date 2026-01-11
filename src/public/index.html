@@ -515,16 +515,11 @@
       align-items: center;
       padding: 12px 14px;
       border-bottom: 1px solid #eee;
-      cursor: pointer;
       transition: background 0.2s;
       gap: 12px;
     }
     .search-result-item:hover {
       background: #f8f9fa;
-    }
-    .search-result-item.selected {
-      background: #eff6ff;
-      border-left: 3px solid #0986e6;
     }
     .search-result-item-content {
       flex: 1;
@@ -537,27 +532,35 @@
       color: #666;
       font-size: 0.85rem;
     }
-    .search-result-check {
-      width: 20px;
-      height: 20px;
+    .search-result-add-btn {
+      width: 28px;
+      height: 28px;
       border: 2px solid #0986e6;
-      border-radius: 4px;
+      border-radius: 6px;
+      background: #fff;
+      color: #0986e6;
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
+      cursor: pointer;
+      font-size: 1.1rem;
+      font-weight: 600;
+      line-height: 1;
+      transition: all 0.2s;
+      padding: 0;
     }
-    .search-result-item.selected .search-result-check {
+    .search-result-add-btn:hover:not(:disabled) {
       background: #0986e6;
       color: #fff;
+      transform: scale(1.05);
     }
-    .search-result-check::after {
-      content: '✓';
-      font-size: 0.8rem;
-      opacity: 0;
+    .search-result-add-btn:active:not(:disabled) {
+      transform: scale(0.95);
     }
-    .search-result-item.selected .search-result-check::after {
-      opacity: 1;
+    .search-result-add-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
     .result-item-position {
       font-weight: 600;
@@ -992,38 +995,6 @@
       if (updateURL) updateURLFunc();
     };
 
-    // Calculate pace from finish time
-    function calculatePace(finishTime, raceType) {
-      if (!finishTime || finishTime === '-') return '-';
-      
-      // Parse time string (format: "H:MM:SS" or "MM:SS")
-      const parts = finishTime.split(':').map(p => parseInt(p, 10));
-      if (parts.length < 2) return '-';
-      
-      let totalSeconds = 0;
-      if (parts.length === 3) {
-        // H:MM:SS format
-        totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-      } else if (parts.length === 2) {
-        // MM:SS format
-        totalSeconds = parts[0] * 60 + parts[1];
-      } else {
-        return '-';
-      }
-      
-      if (isNaN(totalSeconds) || totalSeconds <= 0) return '-';
-      
-      // Distance in km
-      const distance = raceType === 'hm' ? 21.0975 : 10;
-      
-      // Calculate pace in seconds per km
-      const paceSeconds = totalSeconds / distance;
-      const minutes = Math.floor(paceSeconds / 60);
-      const seconds = Math.round(paceSeconds % 60);
-      
-      return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
-    }
-
     // Parse time string to seconds for sorting
     function parseTimeToSeconds(timeStr) {
       if (!timeStr || timeStr === '-') return Infinity;
@@ -1044,21 +1015,25 @@
       );
       
       if (!isSelected) {
-        const raceType = athlete.race === 'Half Marathon' ? 'hm' : 'tenk';
-        const pace = calculatePace(athlete.finishTime, raceType);
         selectedAthletes.push({
           name: athlete.name,
           position: athlete.position,
           finishTime: athlete.finishTime,
-          pace: pace,
+          pace: athlete.pace,
           bibNumber: athlete.bibNumber,
           gender: athlete.gender,
           category: athlete.category,
-          race: athlete.race
+          race: athlete.race,
+          country: athlete.country,
+          time5km: athlete.time5km,
+          time10km: athlete.time10km,
+          time13km: athlete.time13km,
+          time15km: athlete.time15km,
+          genderPosition: athlete.genderPosition,
+          categoryPosition: athlete.categoryPosition
         });
         renderSelectedAthletes();
         renderRankingTable();
-        renderMultiModeResults();
         updateURLFunc();
       }
     }
@@ -1150,14 +1125,6 @@
         return;
       }
       
-      // Calculate pace for athletes that don't have it yet (for backward compatibility)
-      filtered.forEach(athlete => {
-        if (!athlete.pace) {
-          const raceType = athlete.race === 'Half Marathon' ? 'hm' : 'tenk';
-          athlete.pace = calculatePace(athlete.finishTime, raceType);
-        }
-      });
-      
       // Sort athletes
       let sorted = [...filtered];
       if (rankingSort.column) {
@@ -1166,10 +1133,10 @@
           let bVal = b[rankingSort.column];
           
           // Handle numeric sorting for position
-          if (rankingSort.column === 'position') {
+          if (rankingSort.column === 'position' || rankingSort.column === 'genderPosition' || rankingSort.column === 'categoryPosition') {
             aVal = parseInt(aVal) || 0;
             bVal = parseInt(bVal) || 0;
-          } else if (rankingSort.column === 'finishTime') {
+          } else if (rankingSort.column === 'finishTime' || rankingSort.column === 'time5km' || rankingSort.column === 'time10km' || rankingSort.column === 'time13km' || rankingSort.column === 'time15km') {
             // Parse time strings for proper numeric sorting
             aVal = parseTimeToSeconds(aVal);
             bVal = parseTimeToSeconds(bVal);
@@ -1185,6 +1152,7 @@
               bVal = Infinity;
             }
           } else {
+            // Default: string comparison (for name, country, gender, category, bibNumber)
             aVal = String(aVal || '').toLowerCase();
             bVal = String(bVal || '').toLowerCase();
           }
@@ -1201,11 +1169,18 @@
             <tr>
               <th class="sortable ${rankingSort.column === 'position' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('position')">Pos</th>
               <th class="sortable ${rankingSort.column === 'name' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('name')">Name</th>
+              <th class="sortable mobile-hide ${rankingSort.column === 'country' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('country')">Country</th>
               <th class="sortable time-header ${rankingSort.column === 'finishTime' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('finishTime')">Time</th>
+              <th class="sortable mobile-hide time-header ${rankingSort.column === 'time5km' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('time5km')">5km</th>
+              <th class="sortable mobile-hide time-header ${rankingSort.column === 'time10km' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('time10km')">10km</th>
+              <th class="sortable mobile-hide time-header ${rankingSort.column === 'time13km' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('time13km')">13km</th>
+              <th class="sortable mobile-hide time-header ${rankingSort.column === 'time15km' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('time15km')">15km</th>
               <th class="sortable pace-header ${rankingSort.column === 'pace' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('pace')">Pace</th>
               <th class="sortable mobile-hide ${rankingSort.column === 'bibNumber' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('bibNumber')">Bib</th>
               <th class="sortable mobile-hide ${rankingSort.column === 'gender' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('gender')">Gender</th>
               <th class="sortable mobile-hide ${rankingSort.column === 'category' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('category')">Category</th>
+              <th class="sortable mobile-hide ${rankingSort.column === 'genderPosition' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('genderPosition')">G Pos</th>
+              <th class="sortable mobile-hide ${rankingSort.column === 'categoryPosition' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('categoryPosition')">C Pos</th>
             </tr>
           </thead>
           <tbody>
@@ -1216,11 +1191,18 @@
           <tr>
             <td>${athlete.position}</td>
             <td class="name-cell">${escapeHtml(athlete.name)}</td>
+            <td class="mobile-hide">${athlete.country || '-'}</td>
             <td class="time-cell">${athlete.finishTime || '-'}</td>
+            <td class="mobile-hide time-cell">${athlete.time5km || '-'}</td>
+            <td class="mobile-hide time-cell">${athlete.time10km || '-'}</td>
+            <td class="mobile-hide time-cell">${athlete.time13km || '-'}</td>
+            <td class="mobile-hide time-cell">${athlete.time15km || '-'}</td>
             <td class="pace-cell">${athlete.pace || '-'}</td>
             <td class="mobile-hide">${athlete.bibNumber || '-'}</td>
             <td class="mobile-hide">${athlete.gender || '-'}</td>
             <td class="mobile-hide">${athlete.category || '-'}</td>
+            <td class="mobile-hide">${athlete.genderPosition !== undefined ? athlete.genderPosition : '-'}</td>
+            <td class="mobile-hide">${athlete.categoryPosition !== undefined ? athlete.categoryPosition : '-'}</td>
           </tr>
         `;
       }
@@ -1278,8 +1260,10 @@
         );
         
         html += `
-          <div class="search-result-item ${isSelected ? 'selected' : ''}" data-result-index="${i}">
-            <div class="search-result-check"></div>
+          <div class="search-result-item" data-result-index="${i}">
+            <button class="search-result-add-btn" data-result-index="${i}" ${isSelected ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} title="${isSelected ? 'Already added' : 'Add to comparison'}">
+              ${isSelected ? '✓' : '+'}
+            </button>
             <div class="search-result-item-content">
               <div class="result-item-position">${result.position}</div>
               <div class="result-item-bib">${result.bibNumber || '-'}</div>
@@ -1294,11 +1278,19 @@
       
       multiResultsContainer.innerHTML = html;
       
-      // Add click handlers
-      multiResultsContainer.querySelectorAll('.search-result-item').forEach((item, index) => {
-        item.addEventListener('click', () => {
+      // Add click handlers to the add buttons only
+      multiResultsContainer.querySelectorAll('.search-result-add-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const index = parseInt(btn.getAttribute('data-result-index') || '0', 10);
           const result = filtered[index];
-          toggleAthleteSelection(result);
+          if (!selectedAthletes.some(a => a.name === result.name && a.race === result.race)) {
+            addAthleteToSelection(result);
+            // Clear search input and show ranking table
+            searchInput.value = '';
+            searchQuery = '';
+            showInitialState();
+          }
         });
       });
     }

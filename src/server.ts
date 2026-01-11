@@ -242,14 +242,22 @@ app.get('/api/download/csv', async (req, res) => {
   }
 
   // Create CSV
-  const headers = ['Position', 'Bib', 'Name', 'Gender', 'Category', 'Time', 'Race'];
+  const headers = ['Position', 'Bib', 'Name', 'Country', 'Gender', 'Category', 'Time', '5km', '10km', '13km', '15km', 'Pace', 'Gender Position', 'Category Position', 'Race'];
   const rows = allResults.map(r => [
     r.position,
     r.bibNumber,
     `"${r.name.replace(/"/g, '""')}"`,
+    r.country || '',
     r.gender,
     r.category,
     r.finishTime,
+    r.time5km || '',
+    r.time10km || '',
+    r.time13km || '',
+    r.time15km || '',
+    r.pace || '',
+    r.genderPosition !== undefined ? r.genderPosition : '',
+    r.categoryPosition !== undefined ? r.categoryPosition : '',
     r.race,
   ]);
 
