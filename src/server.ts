@@ -65,6 +65,25 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Apply rate limiting to API routes
 app.use('/api/', apiLimiter);
 
+// API: Health check (public, no auth required)
+app.get('/api/health', (_req, res) => {
+  const twilioConfig = {
+    accountSid: process.env.TWILIO_ACCOUNT_SID || '',
+    authToken: process.env.TWILIO_AUTH_TOKEN || '',
+    whatsappFrom: process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886',
+  };
+  const notifyWhatsapp = process.env.NOTIFY_WHATSAPP || '';
+  const isTwilioConfigured = twilioConfig.accountSid && twilioConfig.authToken;
+
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    twilioConfigured: isTwilioConfigured,
+    notifyWhatsappSet: !!notifyWhatsapp,
+    readyForHeartbeat: isTwilioConfigured && !!notifyWhatsapp,
+  });
+});
+
 // API: Get current status
 app.get('/api/status', (req, res) => {
   const state = loadState();
