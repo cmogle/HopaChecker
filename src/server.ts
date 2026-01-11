@@ -18,6 +18,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
+// JSON body parser middleware
+app.use(express.json());
+
 // Rate limiting middleware
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -356,7 +359,7 @@ app.get('/api/monitor', async (req, res) => {
 app.post('/api/scrape/evochip', async (req, res) => {
   // Public endpoint for one-time scraping (no auth required)
 
-  const evoChipUrl = req.body.url || process.env.EVOCHIP_URL || 
+  const evoChipUrl = req.body?.url || process.env.EVOCHIP_URL || 
     'https://evochip.hu/results/result.php?distance=hm&category=none&timepoint=none&eventid=DubaiCreekHalf26DAd&year=&lang=en&css=evochip.css&iframe=0&mobile=0&viewport=device-width';
 
   console.log(`\n📥 EvoChip scrape triggered: ${new Date().toISOString()}`);
