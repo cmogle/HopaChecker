@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DCS Half Marathon Results Search</title>
+  <title>DCS Half Marathon & 10K Results</title>
   <style>
     * {
       box-sizing: border-box;
@@ -23,31 +23,81 @@
     }
     header {
       text-align: center;
-      margin-bottom: 30px;
+      margin-bottom: 24px;
     }
     h1 {
       color: #0986e6;
-      font-size: 1.8rem;
-      margin-bottom: 5px;
+      font-size: 1.6rem;
+      margin-bottom: 4px;
     }
     .subtitle {
       color: #666;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
     }
+
+    /* Race selector tabs */
+    .race-tabs {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .race-tab {
+      flex: 1;
+      padding: 20px 16px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .race-tab .race-icon {
+      font-size: 2rem;
+      display: block;
+      margin-bottom: 8px;
+    }
+    .race-tab .race-name {
+      display: block;
+      font-size: 1.1rem;
+    }
+    .race-tab .race-count {
+      display: block;
+      font-size: 0.8rem;
+      margin-top: 4px;
+      opacity: 0.8;
+    }
+    .race-tab.hm {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    .race-tab.hm:hover, .race-tab.hm.active {
+      background: #1e40af;
+      color: #fff;
+    }
+    .race-tab.tenk {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .race-tab.tenk:hover, .race-tab.tenk.active {
+      background: #166534;
+      color: #fff;
+    }
+
     .status-bar {
       background: #fff;
       border-radius: 8px;
-      padding: 12px 16px;
-      margin-bottom: 20px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 12px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      font-size: 0.8rem;
     }
     .status-item {
-      font-size: 0.85rem;
       color: #666;
     }
     .status-dot {
@@ -55,16 +105,17 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      margin-right: 6px;
+      margin-right: 5px;
     }
     .status-dot.up { background: #22c55e; }
     .status-dot.down { background: #ef4444; }
     .status-dot.unknown { background: #f59e0b; }
+
     .search-box {
       background: #fff;
       border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 20px;
+      padding: 16px;
+      margin-bottom: 16px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     .search-input {
@@ -79,11 +130,19 @@
     .search-input:focus {
       border-color: #0986e6;
     }
+    .search-input.hm-active:focus {
+      border-color: #1e40af;
+    }
+    .search-input.tenk-active:focus {
+      border-color: #166534;
+    }
     .search-hint {
       margin-top: 8px;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       color: #888;
+      text-align: center;
     }
+
     .results-box {
       background: #fff;
       border-radius: 12px;
@@ -91,24 +150,33 @@
       overflow: hidden;
     }
     .results-header {
-      padding: 15px 20px;
+      padding: 12px 16px;
       background: #f8f9fa;
       border-bottom: 1px solid #e0e0e0;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
+    .results-header.hm-active {
+      background: #eff6ff;
+      border-bottom-color: #bfdbfe;
+    }
+    .results-header.tenk-active {
+      background: #f0fdf4;
+      border-bottom-color: #bbf7d0;
+    }
     .results-count {
       font-weight: 600;
       color: #333;
+      font-size: 0.9rem;
     }
     .download-btns {
       display: flex;
       gap: 8px;
     }
     .btn {
-      padding: 8px 16px;
-      font-size: 0.85rem;
+      padding: 6px 12px;
+      font-size: 0.8rem;
       border: none;
       border-radius: 6px;
       cursor: pointer;
@@ -129,12 +197,13 @@
     .btn-secondary:hover {
       background: #d0d0d0;
     }
+
     table {
       width: 100%;
       border-collapse: collapse;
     }
     th, td {
-      padding: 12px 16px;
+      padding: 12px 14px;
       text-align: left;
       border-bottom: 1px solid #eee;
     }
@@ -142,7 +211,7 @@
       background: #f8f9fa;
       font-weight: 600;
       color: #555;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       text-transform: uppercase;
     }
     tr:hover {
@@ -151,29 +220,18 @@
     .name-cell {
       font-weight: 500;
     }
-    .race-badge {
-      display: inline-block;
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
-    .race-hm {
-      background: #dbeafe;
-      color: #1e40af;
-    }
-    .race-10k {
-      background: #dcfce7;
-      color: #166534;
-    }
     .confidence {
-      font-size: 0.8rem;
-      color: #888;
+      font-size: 0.75rem;
+      color: #999;
     }
     .no-results {
-      padding: 40px;
+      padding: 50px 20px;
       text-align: center;
       color: #888;
+    }
+    .no-results .icon {
+      font-size: 3rem;
+      margin-bottom: 12px;
     }
     .loading {
       padding: 40px;
@@ -183,52 +241,73 @@
     .error-msg {
       background: #fef2f2;
       color: #dc2626;
-      padding: 15px 20px;
+      padding: 12px 16px;
       border-radius: 8px;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
+      font-size: 0.9rem;
     }
+
     @media (max-width: 600px) {
-      h1 { font-size: 1.4rem; }
+      h1 { font-size: 1.3rem; }
+      .race-tab { padding: 16px 12px; }
+      .race-tab .race-icon { font-size: 1.5rem; }
+      .race-tab .race-name { font-size: 1rem; }
       .search-input { font-size: 1rem; padding: 12px 14px; }
-      th, td { padding: 10px 12px; font-size: 0.9rem; }
-      .status-bar { flex-direction: column; align-items: flex-start; }
+      th, td { padding: 10px 10px; font-size: 0.85rem; }
+      .status-bar { flex-direction: column; gap: 6px; }
     }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Dubai Creek Striders Half Marathon & 10km</h1>
-      <p class="subtitle">January 11, 2026 - Results Search</p>
+      <h1>Dubai Creek Striders</h1>
+      <p class="subtitle">January 11, 2026 - Official Results</p>
     </header>
 
+    <div class="race-tabs">
+      <button class="race-tab hm active" data-race="hm" onclick="selectRace('hm')">
+        <span class="race-icon">🏃</span>
+        <span class="race-name">Half Marathon</span>
+        <span class="race-count" id="hm-count">-- finishers</span>
+      </button>
+      <button class="race-tab tenk" data-race="tenk" onclick="selectRace('tenk')">
+        <span class="race-icon">🏃‍♀️</span>
+        <span class="race-name">10K</span>
+        <span class="race-count" id="tenk-count">-- finishers</span>
+      </button>
+    </div>
+
     <div class="status-bar" id="status-bar">
-      <span class="status-item">Loading status...</span>
+      <span class="status-item">Loading...</span>
     </div>
 
     <div class="search-box">
       <input
         type="text"
-        class="search-input"
+        class="search-input hm-active"
         id="search-input"
         placeholder="Search by name..."
         autocomplete="off"
       >
-      <p class="search-hint">Start typing to search. Fuzzy matching enabled.</p>
+      <p class="search-hint">Fuzzy search enabled - finds similar names</p>
     </div>
 
     <div id="error-container"></div>
 
     <div class="results-box">
-      <div class="results-header">
-        <span class="results-count" id="results-count">Enter a name to search</span>
+      <div class="results-header hm-active" id="results-header">
+        <span class="results-count" id="results-count">Select a race above</span>
         <div class="download-btns">
           <a href="/api/download/csv" class="btn btn-secondary">CSV</a>
           <a href="/api/download/json" class="btn btn-primary">JSON</a>
         </div>
       </div>
       <div id="results-container">
-        <div class="no-results">Type a name above to search for results</div>
+        <div class="no-results">
+          <div class="icon">👆</div>
+          <div>Select a race and search for a name</div>
+        </div>
       </div>
     </div>
   </div>
@@ -237,10 +316,55 @@
     const searchInput = document.getElementById('search-input');
     const resultsContainer = document.getElementById('results-container');
     const resultsCount = document.getElementById('results-count');
+    const resultsHeader = document.getElementById('results-header');
     const statusBar = document.getElementById('status-bar');
     const errorContainer = document.getElementById('error-container');
+    const hmCountEl = document.getElementById('hm-count');
+    const tenkCountEl = document.getElementById('tenk-count');
 
     let debounceTimer;
+    let currentRace = 'hm'; // 'hm' or 'tenk'
+    let cachedResults = null;
+
+    function selectRace(race) {
+      currentRace = race;
+
+      // Update tab styles
+      document.querySelectorAll('.race-tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.querySelector(`.race-tab.${race}`).classList.add('active');
+
+      // Update search input style
+      searchInput.classList.remove('hm-active', 'tenk-active');
+      searchInput.classList.add(race === 'hm' ? 'hm-active' : 'tenk-active');
+
+      // Update results header style
+      resultsHeader.classList.remove('hm-active', 'tenk-active');
+      resultsHeader.classList.add(race === 'hm' ? 'hm-active' : 'tenk-active');
+
+      // Update placeholder
+      const raceName = race === 'hm' ? 'Half Marathon' : '10K';
+      searchInput.placeholder = `Search ${raceName} results...`;
+
+      // Re-run search if there's a query
+      if (searchInput.value.trim()) {
+        doSearch(searchInput.value);
+      } else {
+        showInitialState();
+      }
+    }
+
+    function showInitialState() {
+      const raceName = currentRace === 'hm' ? 'Half Marathon' : '10K';
+      resultsContainer.innerHTML = `
+        <div class="no-results">
+          <div class="icon">${currentRace === 'hm' ? '🏃' : '🏃‍♀️'}</div>
+          <div>Search for a ${raceName} finisher</div>
+        </div>
+      `;
+      resultsCount.textContent = `${raceName} Results`;
+    }
 
     // Fetch and display status
     async function loadStatus() {
@@ -253,52 +377,74 @@
 
         let statusHtml = `<span class="status-item"><span class="status-dot ${statusClass}"></span>API: ${data.monitor.lastStatus}</span>`;
 
-        if (data.hasResults) {
-          statusHtml += `<span class="status-item">${data.resultCount} results</span>`;
-          if (data.scrapedAt) {
-            const date = new Date(data.scrapedAt);
-            statusHtml += `<span class="status-item">Updated: ${date.toLocaleString()}</span>`;
-          }
+        if (data.hasResults && data.scrapedAt) {
+          const date = new Date(data.scrapedAt);
+          statusHtml += `<span class="status-item">Updated: ${date.toLocaleString()}</span>`;
         } else {
-          statusHtml += `<span class="status-item">No results yet - check back later</span>`;
+          statusHtml += `<span class="status-item">Waiting for results...</span>`;
         }
 
         statusBar.innerHTML = statusHtml;
+
+        // Also fetch full results to get counts
+        await loadResultCounts();
       } catch (e) {
         statusBar.innerHTML = '<span class="status-item">Unable to load status</span>';
+      }
+    }
+
+    async function loadResultCounts() {
+      try {
+        const res = await fetch('/api/results');
+        if (res.ok) {
+          cachedResults = await res.json();
+          const hmCount = cachedResults.categories.halfMarathon.length;
+          const tenkCount = cachedResults.categories.tenKm.length;
+          hmCountEl.textContent = `${hmCount} finishers`;
+          tenkCountEl.textContent = `${tenkCount} finishers`;
+        }
+      } catch (e) {
+        // Silently fail - counts will show '--'
       }
     }
 
     // Perform search
     async function doSearch(query) {
       if (!query.trim()) {
-        resultsContainer.innerHTML = '<div class="no-results">Type a name above to search for results</div>';
-        resultsCount.textContent = 'Enter a name to search';
+        showInitialState();
         return;
       }
 
       resultsContainer.innerHTML = '<div class="loading">Searching...</div>';
 
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const raceFilter = currentRace === 'hm' ? 'Half Marathon' : '10km';
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&race=${encodeURIComponent(raceFilter)}`);
         const data = await res.json();
 
         if (data.error) {
           errorContainer.innerHTML = `<div class="error-msg">${data.error}</div>`;
-          resultsContainer.innerHTML = '<div class="no-results">No results available</div>';
+          resultsContainer.innerHTML = '<div class="no-results"><div class="icon">⏳</div><div>Results not yet available</div></div>';
           resultsCount.textContent = '0 results';
           return;
         }
 
         errorContainer.innerHTML = '';
 
-        if (data.results.length === 0) {
-          resultsContainer.innerHTML = `<div class="no-results">No matches found for "${query}"</div>`;
+        // Filter by race (in case server doesn't filter)
+        const filtered = data.results.filter(r =>
+          (currentRace === 'hm' && r.race === 'Half Marathon') ||
+          (currentRace === 'tenk' && r.race === '10km')
+        );
+
+        if (filtered.length === 0) {
+          const raceName = currentRace === 'hm' ? 'Half Marathon' : '10K';
+          resultsContainer.innerHTML = `<div class="no-results"><div class="icon">🔍</div><div>No ${raceName} matches for "${escapeHtml(query)}"</div></div>`;
           resultsCount.textContent = '0 results';
           return;
         }
 
-        resultsCount.textContent = `${data.results.length} result${data.results.length !== 1 ? 's' : ''}`;
+        resultsCount.textContent = `${filtered.length} result${filtered.length !== 1 ? 's' : ''}`;
 
         let html = `
           <table>
@@ -308,22 +454,18 @@
                 <th>Bib</th>
                 <th>Name</th>
                 <th>Time</th>
-                <th>Race</th>
               </tr>
             </thead>
             <tbody>
         `;
 
-        for (const r of data.results) {
-          const raceClass = r.race === 'Half Marathon' ? 'race-hm' : 'race-10k';
-          const raceLabel = r.race === 'Half Marathon' ? 'HM' : '10K';
+        for (const r of filtered) {
           html += `
             <tr>
               <td>${r.position}</td>
               <td>${r.bibNumber || '-'}</td>
-              <td class="name-cell">${escapeHtml(r.name)} <span class="confidence">(${r.confidence}%)</span></td>
+              <td class="name-cell">${escapeHtml(r.name)} <span class="confidence">${r.confidence}%</span></td>
               <td>${r.finishTime || '-'}</td>
-              <td><span class="race-badge ${raceClass}">${raceLabel}</span></td>
             </tr>
           `;
         }
@@ -332,7 +474,7 @@
         resultsContainer.innerHTML = html;
 
       } catch (e) {
-        resultsContainer.innerHTML = '<div class="no-results">Error searching. Please try again.</div>';
+        resultsContainer.innerHTML = '<div class="no-results"><div class="icon">⚠️</div><div>Error searching. Please try again.</div></div>';
         resultsCount.textContent = 'Error';
       }
     }
@@ -353,6 +495,7 @@
 
     // Initial load
     loadStatus();
+    showInitialState();
 
     // Refresh status periodically
     setInterval(loadStatus, 60000);
