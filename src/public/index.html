@@ -352,6 +352,224 @@
       cursor: not-allowed;
     }
 
+    /* Mode toggle */
+    .mode-tabs {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      background: #fff;
+      border-radius: 8px;
+      padding: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .mode-tab {
+      flex: 1;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      text-align: center;
+      background: transparent;
+      color: #666;
+    }
+    .mode-tab:hover {
+      background: #f8f9fa;
+    }
+    .mode-tab.active {
+      background: #0986e6;
+      color: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    /* Selected athletes panel */
+    .selected-panel {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      display: none;
+    }
+    .selected-panel.visible {
+      display: block;
+    }
+    .selected-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .selected-count {
+      font-weight: 600;
+      color: #333;
+      font-size: 0.95rem;
+    }
+    .clear-all-btn {
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      background: #fff;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .clear-all-btn:hover {
+      background: #f8f9fa;
+      border-color: #d0d0d0;
+    }
+    .selected-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .selected-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      border: 1px solid #e0e0e0;
+    }
+    .selected-item-name {
+      font-weight: 500;
+      color: #333;
+    }
+    .selected-item-remove {
+      background: none;
+      border: none;
+      color: #dc2626;
+      cursor: pointer;
+      font-size: 1.2rem;
+      line-height: 1;
+      padding: 0;
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      transition: background 0.2s;
+    }
+    .selected-item-remove:hover {
+      background: #fee2e2;
+    }
+
+    /* Ranking table */
+    .ranking-box {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+      display: none;
+    }
+    .ranking-box.visible {
+      display: block;
+    }
+    .ranking-header {
+      padding: 12px 16px;
+      background: #f0f9ff;
+      border-bottom: 1px solid #bfdbfe;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .ranking-title {
+      font-weight: 600;
+      color: #333;
+      font-size: 0.95rem;
+    }
+
+    /* Multi-mode search results */
+    .search-result-item {
+      display: flex;
+      align-items: center;
+      padding: 12px 14px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+      transition: background 0.2s;
+      gap: 12px;
+    }
+    .search-result-item:hover {
+      background: #f8f9fa;
+    }
+    .search-result-item.selected {
+      background: #eff6ff;
+      border-left: 3px solid #0986e6;
+    }
+    .search-result-item-content {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 60px 80px 1fr auto 100px 80px;
+      gap: 12px;
+      align-items: center;
+    }
+    .result-item-gender {
+      color: #666;
+      font-size: 0.85rem;
+    }
+    .search-result-check {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #0986e6;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .search-result-item.selected .search-result-check {
+      background: #0986e6;
+      color: #fff;
+    }
+    .search-result-check::after {
+      content: '✓';
+      font-size: 0.8rem;
+      opacity: 0;
+    }
+    .search-result-item.selected .search-result-check::after {
+      opacity: 1;
+    }
+    .result-item-position {
+      font-weight: 600;
+      color: #666;
+    }
+    .result-item-name {
+      font-weight: 500;
+      color: #333;
+    }
+    .result-item-time {
+      color: #666;
+      font-family: monospace;
+    }
+    .result-item-bib {
+      color: #999;
+      font-size: 0.85rem;
+    }
+
+    /* Hide elements in multi mode */
+    .single-mode-only {
+      display: block;
+    }
+    .multi-mode-only {
+      display: none;
+    }
+    body.multi-mode .single-mode-only {
+      display: none;
+    }
+    body.multi-mode .multi-mode-only {
+      display: block;
+    }
+
     @media (max-width: 600px) {
       h1 { font-size: 1.3rem; }
       .race-tab { padding: 16px 12px; }
@@ -363,6 +581,19 @@
       .results-header { flex-direction: column; align-items: flex-start; }
       table { font-size: 0.85rem; }
       th.sortable::after { display: none; }
+      .search-result-item-content {
+        grid-template-columns: 50px 1fr 80px;
+        gap: 8px;
+      }
+      .result-item-bib,
+      .result-item-gender,
+      .result-item-category {
+        display: none;
+      }
+      .selected-panel-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
     }
   </style>
 </head>
@@ -399,6 +630,23 @@
       <span class="status-item">Loading...</span>
     </div>
 
+    <div class="mode-tabs">
+      <button class="mode-tab active" data-mode="single" onclick="toggleMode('single')">
+        Single Search
+      </button>
+      <button class="mode-tab" data-mode="multi" onclick="toggleMode('multi')">
+        Multi-Athlete Ranking
+      </button>
+    </div>
+
+    <div class="selected-panel" id="selected-panel">
+      <div class="selected-panel-header">
+        <span class="selected-count" id="selected-count">0 athletes selected</span>
+        <button class="clear-all-btn" onclick="clearSelection()">Clear All</button>
+      </div>
+      <div class="selected-list" id="selected-list"></div>
+    </div>
+
     <div class="search-box">
       <input
         type="text"
@@ -412,7 +660,31 @@
 
     <div id="error-container"></div>
 
-    <div class="results-box">
+    <div class="results-box multi-mode-only" id="multi-results-box" style="display: none;">
+      <div class="results-header hm-active" id="multi-results-header">
+        <span class="results-count" id="multi-results-count">Search results</span>
+      </div>
+      <div id="multi-results-container">
+        <div class="no-results">
+          <div class="icon">🔍</div>
+          <div>Search for athletes to add to ranking</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ranking-box" id="ranking-box">
+      <div class="ranking-header">
+        <span class="ranking-title" id="ranking-title">Ranking (0 athletes)</span>
+      </div>
+      <div id="ranking-container">
+        <div class="no-results">
+          <div class="icon">👥</div>
+          <div>Select athletes to compare rankings</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="results-box single-mode-only">
       <div class="results-header hm-active" id="results-header">
         <span class="results-count" id="results-count">Select a race above</span>
         <div class="download-btns">
@@ -448,6 +720,9 @@
     let currentResults = [];
     let currentSort = { column: null, direction: 'asc' };
     let searchQuery = '';
+    let currentMode = 'single';
+    let selectedAthletes = [];
+    let rankingSort = { column: 'position', direction: 'asc' };
 
     // Event configuration
     const eventConfig = {
@@ -522,6 +797,7 @@
       const event = params.get('event');
       const race = params.get('race');
       const query = params.get('q');
+      const mode = params.get('mode');
       
       if (event === 'plus500') {
         selectEvent('plus500', false);
@@ -535,6 +811,24 @@
       } else if (race === 'hm' || race === 'half') {
         currentRace = 'hm';
         selectRace('hm', false);
+      }
+      
+      if (mode === 'multi') {
+        toggleMode('multi', false);
+        // Load selected athletes from URL if present
+        const selected = params.get('selected');
+        if (selected) {
+          try {
+            const decoded = decodeURIComponent(selected);
+            selectedAthletes = JSON.parse(decoded);
+            renderSelectedAthletes();
+            renderRankingTable();
+          } catch (e) {
+            // Invalid JSON, ignore
+          }
+        }
+      } else {
+        toggleMode('single', false);
       }
       
       if (query) {
@@ -552,6 +846,17 @@
       }
       if (currentRace) {
         params.set('race', currentRace === 'hm' ? 'hm' : 'tenk');
+      }
+      if (currentMode === 'multi') {
+        params.set('mode', 'multi');
+        if (selectedAthletes.length > 0) {
+          try {
+            const encoded = encodeURIComponent(JSON.stringify(selectedAthletes));
+            params.set('selected', encoded);
+          } catch (e) {
+            // Ignore encoding errors
+          }
+        }
       }
       if (searchQuery) {
         params.set('q', searchQuery);
@@ -592,6 +897,12 @@
       // Update download links
       updateDownloadLinks();
 
+      // Re-render multi mode views if in multi mode
+      if (currentMode === 'multi') {
+        renderSelectedAthletes();
+        renderRankingTable();
+      }
+
       // Re-run search if there's a query
       if (searchInput.value.trim()) {
         doSearch(searchInput.value, updateURL);
@@ -601,15 +912,328 @@
       }
     }
 
+    // Toggle between single and multi mode (global for onclick handlers)
+    window.toggleMode = function(mode, updateURL = true) {
+      currentMode = mode;
+      document.body.classList.toggle('multi-mode', mode === 'multi');
+      
+      // Update mode tab styles
+      document.querySelectorAll('.mode-tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.querySelector(`.mode-tab[data-mode="${mode}"]`).classList.add('active');
+      
+      // Show/hide panels
+      const selectedPanel = document.getElementById('selected-panel');
+      const rankingBox = document.getElementById('ranking-box');
+      const resultsBox = document.querySelector('.results-box.single-mode-only');
+      const multiResultsBox = document.getElementById('multi-results-box');
+      
+      if (mode === 'multi') {
+        selectedPanel.classList.add('visible');
+        rankingBox.classList.add('visible');
+        resultsBox.style.display = 'none';
+        multiResultsBox.style.display = '';
+        renderSelectedAthletes();
+        renderRankingTable();
+        if (currentResults.length > 0) {
+          renderMultiModeResults();
+        } else {
+          showInitialState();
+        }
+      } else {
+        selectedPanel.classList.remove('visible');
+        rankingBox.classList.remove('visible');
+        resultsBox.style.display = '';
+        multiResultsBox.style.display = 'none';
+        if (currentResults.length > 0) {
+          renderResults();
+        } else {
+          showInitialState();
+        }
+      }
+      
+      if (updateURL) updateURL();
+    };
+
+    // Add athlete to selection
+    function addAthleteToSelection(athlete) {
+      // Check if already selected (by name and race)
+      const isSelected = selectedAthletes.some(a => 
+        a.name === athlete.name && a.race === athlete.race
+      );
+      
+      if (!isSelected) {
+        selectedAthletes.push({
+          name: athlete.name,
+          position: athlete.position,
+          finishTime: athlete.finishTime,
+          bibNumber: athlete.bibNumber,
+          gender: athlete.gender,
+          category: athlete.category,
+          race: athlete.race
+        });
+        renderSelectedAthletes();
+        renderRankingTable();
+        renderMultiModeResults();
+        updateURL();
+      }
+    }
+
+    // Remove athlete from selection (global for onclick handlers)
+    window.removeAthleteFromSelection = function(name, race) {
+      selectedAthletes = selectedAthletes.filter(a => 
+        !(a.name === name && a.race === race)
+      );
+      renderSelectedAthletes();
+      renderRankingTable();
+      renderMultiModeResults();
+      updateURL();
+    };
+
+    // Clear all selected athletes (global for onclick handlers)
+    window.clearSelection = function() {
+      selectedAthletes = [];
+      renderSelectedAthletes();
+      renderRankingTable();
+      renderMultiModeResults();
+      updateURL();
+    };
+
+
+    // Render selected athletes panel
+    function renderSelectedAthletes() {
+      const selectedList = document.getElementById('selected-list');
+      const selectedCount = document.getElementById('selected-count');
+      const raceName = currentRace === 'hm' ? 'Half Marathon' : '10km';
+      const filtered = selectedAthletes.filter(a => a.race === raceName);
+      
+      selectedCount.textContent = `${filtered.length} athlete${filtered.length !== 1 ? 's' : ''} selected`;
+      
+      if (filtered.length === 0) {
+        selectedList.innerHTML = '<div style="color: #888; font-size: 0.9rem;">No athletes selected. Search and click to add.</div>';
+      } else {
+        // Store filtered athletes temporarily for event handlers
+        window._currentFilteredAthletes = filtered;
+        
+        selectedList.innerHTML = filtered.map((athlete, index) => `
+          <div class="selected-item" data-athlete-index="${index}">
+            <span class="selected-item-name">${escapeHtml(athlete.name)}</span>
+            <button class="selected-item-remove" data-index="${index}" title="Remove">×</button>
+          </div>
+        `).join('');
+        
+        // Add click handlers for remove buttons
+        selectedList.querySelectorAll('.selected-item-remove').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const index = parseInt(btn.getAttribute('data-index'), 10);
+            if (window._currentFilteredAthletes && window._currentFilteredAthletes[index]) {
+              const athlete = window._currentFilteredAthletes[index];
+              removeAthleteFromSelection(athlete.name, athlete.race);
+            }
+          });
+        });
+      }
+    }
+
+    // Sort ranking table (global for onclick handlers)
+    window.sortRankingTable = function(column) {
+      if (rankingSort.column === column) {
+        rankingSort.direction = rankingSort.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        rankingSort.column = column;
+        rankingSort.direction = 'asc';
+      }
+      renderRankingTable();
+    };
+
+    // Render ranking table
+    function renderRankingTable() {
+      const rankingContainer = document.getElementById('ranking-container');
+      const rankingTitle = document.getElementById('ranking-title');
+      const raceName = currentRace === 'hm' ? 'Half Marathon' : '10km';
+      const filtered = selectedAthletes.filter(a => a.race === raceName);
+      
+      rankingTitle.textContent = `Ranking (${filtered.length} athlete${filtered.length !== 1 ? 's' : ''})`;
+      
+      if (filtered.length === 0) {
+        rankingContainer.innerHTML = `
+          <div class="no-results">
+            <div class="icon">👥</div>
+            <div>Select athletes to compare rankings</div>
+          </div>
+        `;
+        return;
+      }
+      
+      // Sort athletes
+      let sorted = [...filtered];
+      if (rankingSort.column) {
+        sorted.sort((a, b) => {
+          let aVal = a[rankingSort.column];
+          let bVal = b[rankingSort.column];
+          
+          // Handle numeric sorting for position
+          if (rankingSort.column === 'position') {
+            aVal = parseInt(aVal) || 0;
+            bVal = parseInt(bVal) || 0;
+          } else {
+            aVal = String(aVal || '').toLowerCase();
+            bVal = String(bVal || '').toLowerCase();
+          }
+          
+          if (aVal < bVal) return rankingSort.direction === 'asc' ? -1 : 1;
+          if (aVal > bVal) return rankingSort.direction === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+      
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th class="sortable ${rankingSort.column === 'position' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('position')">Pos</th>
+              <th class="sortable ${rankingSort.column === 'bibNumber' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('bibNumber')">Bib</th>
+              <th class="sortable ${rankingSort.column === 'name' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('name')">Name</th>
+              <th class="sortable ${rankingSort.column === 'gender' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('gender')">Gender</th>
+              <th class="sortable ${rankingSort.column === 'category' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('category')">Category</th>
+              <th class="sortable ${rankingSort.column === 'finishTime' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('finishTime')">Time</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      
+      for (const athlete of sorted) {
+        html += `
+          <tr>
+            <td>${athlete.position}</td>
+            <td>${athlete.bibNumber || '-'}</td>
+            <td class="name-cell">${escapeHtml(athlete.name)}</td>
+            <td>${athlete.gender || '-'}</td>
+            <td>${athlete.category || '-'}</td>
+            <td>${athlete.finishTime || '-'}</td>
+          </tr>
+        `;
+      }
+      
+      html += '</tbody></table>';
+      rankingContainer.innerHTML = html;
+    }
+
+    // Render multi-mode search results
+    function renderMultiModeResults() {
+      if (currentMode !== 'multi') {
+        return;
+      }
+      
+      const multiResultsContainer = document.getElementById('multi-results-container');
+      const multiResultsCount = document.getElementById('multi-results-count');
+      const multiResultsHeader = document.getElementById('multi-results-header');
+      
+      // Update header style
+      multiResultsHeader.classList.remove('hm-active', 'tenk-active');
+      multiResultsHeader.classList.add(currentRace === 'hm' ? 'hm-active' : 'tenk-active');
+      
+      if (currentResults.length === 0) {
+        multiResultsContainer.innerHTML = `
+          <div class="no-results">
+            <div class="icon">🔍</div>
+            <div>Search for athletes to add to ranking</div>
+          </div>
+        `;
+        multiResultsCount.textContent = 'Search results';
+        return;
+      }
+      
+      const raceName = currentRace === 'hm' ? 'Half Marathon' : '10km';
+      const filtered = currentResults.filter(r => r.race === raceName);
+      
+      if (filtered.length === 0) {
+        multiResultsContainer.innerHTML = `
+          <div class="no-results">
+            <div class="icon">🔍</div>
+            <div>No ${raceName} matches found</div>
+          </div>
+        `;
+        multiResultsCount.textContent = '0 results';
+        return;
+      }
+      
+      multiResultsCount.textContent = `${filtered.length} result${filtered.length !== 1 ? 's' : ''}`;
+      
+      let html = '';
+      for (let i = 0; i < filtered.length; i++) {
+        const result = filtered[i];
+        const isSelected = selectedAthletes.some(a => 
+          a.name === result.name && a.race === result.race
+        );
+        
+        html += `
+          <div class="search-result-item ${isSelected ? 'selected' : ''}" data-result-index="${i}">
+            <div class="search-result-check"></div>
+            <div class="search-result-item-content">
+              <div class="result-item-position">${result.position}</div>
+              <div class="result-item-bib">${result.bibNumber || '-'}</div>
+              <div class="result-item-name">${escapeHtml(result.name)}</div>
+              <div class="result-item-gender">${result.gender || '-'}</div>
+              <div class="result-item-category">${result.category || '-'}</div>
+              <div class="result-item-time">${result.finishTime || '-'}</div>
+            </div>
+          </div>
+        `;
+      }
+      
+      multiResultsContainer.innerHTML = html;
+      
+      // Add click handlers
+      multiResultsContainer.querySelectorAll('.search-result-item').forEach((item, index) => {
+        item.addEventListener('click', () => {
+          const result = filtered[index];
+          toggleAthleteSelection(result);
+        });
+      });
+    }
+
+    // Toggle athlete selection
+    function toggleAthleteSelection(athlete) {
+      const isSelected = selectedAthletes.some(a => 
+        a.name === athlete.name && a.race === athlete.race
+      );
+      
+      if (isSelected) {
+        removeAthleteFromSelection(athlete.name, athlete.race);
+      } else {
+        addAthleteToSelection(athlete);
+      }
+    }
+
     function showInitialState() {
       const raceName = currentRace === 'hm' ? 'Half Marathon' : '10K';
-      resultsContainer.innerHTML = `
-        <div class="no-results">
-          <div class="icon">${currentRace === 'hm' ? '🏃' : '🏃‍♀️'}</div>
-          <div>Search for a ${raceName} finisher</div>
-        </div>
-      `;
-      resultsCount.textContent = `${raceName} Results`;
+      
+      if (currentMode === 'multi') {
+        const multiResultsContainer = document.getElementById('multi-results-container');
+        const multiResultsCount = document.getElementById('multi-results-count');
+        if (multiResultsContainer) {
+          multiResultsContainer.innerHTML = `
+            <div class="no-results">
+              <div class="icon">${currentRace === 'hm' ? '🏃' : '🏃‍♀️'}</div>
+              <div>Search and click to add ${raceName} athletes</div>
+            </div>
+          `;
+        }
+        if (multiResultsCount) {
+          multiResultsCount.textContent = 'Search results';
+        }
+      } else {
+        resultsContainer.innerHTML = `
+          <div class="no-results">
+            <div class="icon">${currentRace === 'hm' ? '🏃' : '🏃‍♀️'}</div>
+            <div>Search for a ${raceName} finisher</div>
+          </div>
+        `;
+        resultsCount.textContent = `${raceName} Results`;
+      }
       currentResults = [];
     }
 
@@ -682,6 +1306,11 @@
 
     // Render results table
     function renderResults() {
+      if (currentMode === 'multi') {
+        renderMultiModeResults();
+        return;
+      }
+      
       if (currentResults.length === 0) {
         showInitialState();
         return;
@@ -791,15 +1420,20 @@
         }
 
         currentResults = filtered;
-        currentSort = { column: null, direction: 'asc' };
-        renderResults();
-
-        // Show pagination info if limited
-        if (data.hasMore || data.total >= data.limit) {
-          const paginationInfo = document.createElement('div');
-          paginationInfo.className = 'pagination-info';
-          paginationInfo.textContent = `Showing ${filtered.length} of ${data.total} result${data.total !== 1 ? 's' : ''}${data.hasMore ? ' (limited to 20)' : ''}`;
-          resultsContainer.appendChild(paginationInfo);
+        
+        if (currentMode === 'multi') {
+          renderMultiModeResults();
+        } else {
+          currentSort = { column: null, direction: 'asc' };
+          renderResults();
+          
+          // Show pagination info if limited (only in single mode)
+          if (data.hasMore || data.total >= data.limit) {
+            const paginationInfo = document.createElement('div');
+            paginationInfo.className = 'pagination-info';
+            paginationInfo.textContent = `Showing ${filtered.length} of ${data.total} result${data.total !== 1 ? 's' : ''}${data.hasMore ? ' (limited to 20)' : ''}`;
+            resultsContainer.appendChild(paginationInfo);
+          }
         }
 
         if (updateURL) updateURL();
