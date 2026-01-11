@@ -19,18 +19,30 @@
       line-height: 1.6;
     }
     .container {
-      max-width: 900px;
+      max-width: 1200px;
       margin: 0 auto;
       padding: 20px;
+    }
+    .main-content-wrapper {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+    .main-content {
+      flex: 1;
+      min-width: 0;
+    }
+    @media (max-width: 900px) {
+      .main-content-wrapper {
+        flex-direction: column;
+      }
     }
     header {
       text-align: center;
       margin-bottom: 16px;
     }
     h1 {
-      color: #0986e6;
-      font-size: 1.4rem;
-      margin-bottom: 2px;
+      display: none;
     }
     .subtitle {
       color: #666;
@@ -42,6 +54,10 @@
       display: flex;
       gap: 12px;
       margin-bottom: 16px;
+      justify-content: center;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
     }
     /* Hide Plus500 tab (can be reactivated by removing this rule) */
     .event-tab[data-event="plus500"] {
@@ -68,6 +84,9 @@
       background: #0986e6;
       color: #fff;
       box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+      font-size: 1.1rem;
+      font-weight: 700;
+      padding: 16px 20px;
     }
 
     /* Race selector tabs */
@@ -502,15 +521,34 @@
 
     /* Comparison table (hidden by default) */
     .comparison-box {
-      background: #fff;
+      background: #F0F9FF;
       border-radius: 12px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       overflow: hidden;
       display: none;
       margin-bottom: 16px;
+      border: 2px solid #bfdbfe;
     }
     .comparison-box.visible {
       display: block;
+    }
+    @media (min-width: 901px) {
+      .comparison-box {
+        width: 320px;
+        position: sticky;
+        top: 20px;
+        max-height: calc(100vh - 40px);
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 0;
+      }
+      .comparison-box.visible {
+        display: flex;
+      }
+      .comparison-container {
+        overflow-y: auto;
+        flex: 1;
+      }
     }
     .comparison-header {
       padding: 12px 16px;
@@ -527,15 +565,19 @@
     }
     .comparison-clear {
       padding: 4px 10px;
-      font-size: 0.8rem;
-      border: 1px solid #e0e0e0;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border: none;
       border-radius: 6px;
-      background: #fff;
-      color: #666;
+      background: transparent;
+      color: #dc2626;
       cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
     }
     .comparison-clear:hover {
-      background: #f8f9fa;
+      text-decoration: underline;
+      color: #b91c1c;
     }
 
     /* Search result items - clickable rows */
@@ -619,10 +661,112 @@
       display: none;
     }
 
+    /* Mobile comparison drawer */
+    .comparison-bottom-bar {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #fff;
+      border-top: 2px solid #bfdbfe;
+      box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+      z-index: 1000;
+      padding: 12px 16px;
+    }
+    .comparison-bottom-bar.visible {
+      display: block;
+    }
+    .comparison-bottom-bar-trigger {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+    .comparison-bottom-bar-count {
+      font-weight: 600;
+      color: #333;
+      font-size: 0.95rem;
+    }
+    .comparison-bottom-bar-view {
+      color: #0986e6;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .comparison-drawer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #F0F9FF;
+      border-top: 2px solid #bfdbfe;
+      max-height: 70vh;
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+      z-index: 1001;
+      display: flex;
+      flex-direction: column;
+    }
+    .comparison-drawer.open {
+      transform: translateY(0);
+    }
+    .comparison-drawer-header {
+      padding: 16px;
+      border-bottom: 1px solid #bfdbfe;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #fff;
+    }
+    .comparison-drawer-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      color: #666;
+      cursor: pointer;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .comparison-drawer-content {
+      overflow-y: auto;
+      flex: 1;
+      padding: 16px;
+    }
+    .comparison-drawer-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 1000;
+      display: none;
+    }
+    .comparison-drawer-overlay.open {
+      display: block;
+    }
+    @media (min-width: 901px) {
+      .comparison-bottom-bar,
+      .comparison-drawer,
+      .comparison-drawer-overlay {
+        display: none !important;
+      }
+    }
+    @media (max-width: 900px) {
+      .comparison-box {
+        display: none !important;
+      }
+    }
+
     @media (max-width: 600px) {
       header { margin-bottom: 12px; }
-      h1 { font-size: 1.2rem; margin-bottom: 1px; }
       .subtitle { font-size: 0.8rem; }
+      .event-tabs { max-width: 100%; }
+      .event-tab.active { font-size: 1rem; padding: 14px 16px; }
       .race-tabs { gap: 6px; margin-bottom: 12px; }
       .race-tab { padding: 12px 8px; }
       .race-tab .race-icon { font-size: 1.4rem; margin-bottom: 4px; }
@@ -1108,68 +1252,91 @@
       </button>
     </div>
 
-    <div class="search-box">
-      <input
-        type="text"
-        class="search-input hm-active"
-        id="search-input"
-        placeholder="Search for an athlete..."
-        autocomplete="off"
-      >
-      <p class="search-hint">Press / to focus • Click a result to view details</p>
-    </div>
-
-    <div id="error-container"></div>
-
-    <!-- Trophy Case - shown when athlete is selected -->
-    <div class="trophy-case" id="trophy-case"></div>
-
-    <!-- Charts section - shown when athlete is selected -->
-    <div class="charts-section" id="charts-section">
-      <div class="charts-header">
-        <span class="charts-title">Race Analytics</span>
-        <button class="charts-toggle expanded" id="charts-toggle" onclick="toggleCharts()">Hide</button>
-      </div>
-      <div class="charts-content visible" id="charts-content">
-        <div class="chart-container">
-          <div class="chart-label"><span class="chart-label-icon">📊</span> Finish Time Distribution</div>
-          <canvas id="distribution-chart"></canvas>
+    <div class="main-content-wrapper">
+      <div class="main-content">
+        <div class="search-box">
+          <input
+            type="text"
+            class="search-input hm-active"
+            id="search-input"
+            placeholder="Search for an athlete..."
+            autocomplete="off"
+          >
+          <p class="search-hint">Press / to focus • Click a result to view details</p>
         </div>
-        <div class="chart-container">
-          <div class="chart-label"><span class="chart-label-icon">📈</span> Split Pace Comparison</div>
-          <canvas id="pace-chart"></canvas>
+
+        <div id="error-container"></div>
+
+        <!-- Trophy Case - shown when athlete is selected -->
+        <div class="trophy-case" id="trophy-case"></div>
+
+        <!-- Charts section - shown when athlete is selected -->
+        <div class="charts-section" id="charts-section">
+          <div class="charts-header">
+            <span class="charts-title">Race Analytics</span>
+            <button class="charts-toggle expanded" id="charts-toggle" onclick="toggleCharts()">Hide</button>
+          </div>
+          <div class="charts-content visible" id="charts-content">
+            <div class="chart-container">
+              <div class="chart-label"><span class="chart-label-icon">📊</span> Finish Time Distribution</div>
+              <canvas id="distribution-chart"></canvas>
+            </div>
+            <div class="chart-container">
+              <div class="chart-label"><span class="chart-label-icon">📈</span> Split Pace Comparison</div>
+              <canvas id="pace-chart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Compare mode toggle and pills -->
+        <div class="compare-toggle" id="compare-toggle">
+          <input type="checkbox" id="compare-mode-checkbox" onchange="toggleCompareMode()">
+          <label for="compare-mode-checkbox">Compare multiple athletes</label>
+          <span class="compare-count" id="compare-count">0</span>
+        </div>
+
+        <div class="compare-pills" id="compare-pills"></div>
+
+        <!-- Search results -->
+        <div class="results-box" id="results-box">
+          <div class="results-header hm-active" id="results-header">
+            <span class="results-count" id="results-count">Search for an athlete</span>
+          </div>
+          <div id="results-container">
+            <div class="no-results">
+              <div class="icon">🔍</div>
+              <div>Enter a name above to find race results</div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Compare mode toggle and pills -->
-    <div class="compare-toggle" id="compare-toggle">
-      <input type="checkbox" id="compare-mode-checkbox" onchange="toggleCompareMode()">
-      <label for="compare-mode-checkbox">Compare multiple athletes</label>
-      <span class="compare-count" id="compare-count">0</span>
-    </div>
-
-    <div class="compare-pills" id="compare-pills"></div>
-
-    <!-- Comparison table (only in compare mode) -->
-    <div class="comparison-box" id="comparison-box">
-      <div class="comparison-header">
-        <span class="comparison-title" id="comparison-title">Comparison (0 athletes)</span>
-        <button class="comparison-clear" onclick="clearComparison()">Clear All</button>
-      </div>
-      <div id="comparison-container"></div>
-    </div>
-
-    <!-- Search results -->
-    <div class="results-box" id="results-box">
-      <div class="results-header hm-active" id="results-header">
-        <span class="results-count" id="results-count">Search for an athlete</span>
-      </div>
-      <div id="results-container">
-        <div class="no-results">
-          <div class="icon">🔍</div>
-          <div>Enter a name above to find race results</div>
+      <!-- Comparison table (only in compare mode) - Desktop sidebar -->
+      <div class="comparison-box" id="comparison-box">
+        <div class="comparison-header">
+          <span class="comparison-title" id="comparison-title">Comparison (0 athletes)</span>
+          <button class="comparison-clear" onclick="clearComparison()">Clear All</button>
         </div>
+        <div class="comparison-container" id="comparison-container"></div>
+      </div>
+    </div>
+
+    <!-- Mobile comparison bottom bar and drawer -->
+    <div class="comparison-bottom-bar" id="comparison-bottom-bar">
+      <div class="comparison-bottom-bar-trigger" onclick="toggleComparisonDrawer()">
+        <span class="comparison-bottom-bar-count" id="comparison-bottom-bar-count">0 Athletes Selected</span>
+        <span class="comparison-bottom-bar-view">View</span>
+      </div>
+    </div>
+    <div class="comparison-drawer-overlay" id="comparison-drawer-overlay" onclick="toggleComparisonDrawer()"></div>
+    <div class="comparison-drawer" id="comparison-drawer">
+      <div class="comparison-drawer-header">
+        <span class="comparison-title" id="comparison-drawer-title">Comparison (0 athletes)</span>
+        <button class="comparison-drawer-close" onclick="toggleComparisonDrawer()">×</button>
+      </div>
+      <div class="comparison-drawer-content" id="comparison-drawer-container"></div>
+      <div class="comparison-drawer-header" style="border-top: 1px solid #bfdbfe; border-bottom: none;">
+        <button class="comparison-clear" onclick="clearComparison()" style="width: 100%;">Clear All</button>
       </div>
     </div>
 
@@ -1195,6 +1362,8 @@
     let selectedAthlete = null;  // Single athlete for primary view
     let compareMode = false;     // Toggle for multi-athlete comparison
     let comparedAthletes = [];   // Athletes being compared
+    let currentTimeFilter = null; // { min: seconds, max: seconds } for chart filtering
+    let comparisonDrawerOpen = false;
 
     // Client-side caching
     const resultsCache = new Map(); // Key: 'event_race', Value: { data, timestamp, scrapedAt }
@@ -1621,6 +1790,17 @@
             x: {
               title: { display: true, text: 'Finish Time' }
             }
+          },
+          onClick: (e, elements) => {
+            if (elements.length > 0) {
+              const index = elements[0].index;
+              const binMin = minTime + (index * 300);
+              const binMax = binMin + 300;
+              filterResultsByTimeRange(binMin, binMax);
+            }
+          },
+          onHover: (event, chartElement) => {
+            event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default';
           }
         }
       });
@@ -1830,14 +2010,23 @@
       const comparisonBox = document.getElementById('comparison-box');
       const comparisonContainer = document.getElementById('comparison-container');
       const comparisonTitle = document.getElementById('comparison-title');
+      const comparisonDrawerTitle = document.getElementById('comparison-drawer-title');
+      const comparisonDrawerContainer = document.getElementById('comparison-drawer-container');
+      const comparisonBottomBar = document.getElementById('comparison-bottom-bar');
+      const comparisonBottomBarCount = document.getElementById('comparison-bottom-bar-count');
 
       if (!compareMode || comparedAthletes.length === 0) {
         comparisonBox.classList.remove('visible');
+        comparisonBottomBar.classList.remove('visible');
         return;
       }
 
       comparisonBox.classList.add('visible');
+      comparisonBottomBar.classList.add('visible');
+      const countText = `${comparedAthletes.length} Athlete${comparedAthletes.length !== 1 ? 's' : ''} Selected`;
       comparisonTitle.textContent = `Comparison (${comparedAthletes.length} athletes)`;
+      if (comparisonDrawerTitle) comparisonDrawerTitle.textContent = `Comparison (${comparedAthletes.length} athletes)`;
+      comparisonBottomBarCount.textContent = countText;
 
       // Sort by finish time
       const sorted = [...comparedAthletes].sort((a, b) => {
@@ -1879,6 +2068,30 @@
 
       html += '</tbody></table>';
       comparisonContainer.innerHTML = html;
+      if (comparisonDrawerContainer) comparisonDrawerContainer.innerHTML = html;
+    }
+
+    // Toggle comparison drawer on mobile
+    window.toggleComparisonDrawer = function() {
+      comparisonDrawerOpen = !comparisonDrawerOpen;
+      const drawer = document.getElementById('comparison-drawer');
+      const overlay = document.getElementById('comparison-drawer-overlay');
+      if (drawer) drawer.classList.toggle('open', comparisonDrawerOpen);
+      if (overlay) overlay.classList.toggle('open', comparisonDrawerOpen);
+    };
+
+    // Filter results by time range (from chart click)
+    function filterResultsByTimeRange(minSeconds, maxSeconds) {
+      currentTimeFilter = { min: minSeconds, max: maxSeconds };
+      if (currentResults.length > 0) {
+        renderResults();
+      }
+    }
+
+    // Clear time filter
+    function clearTimeFilter() {
+      currentTimeFilter = null;
+      renderResults();
     }
 
     // Select an athlete (primary view)
@@ -1922,7 +2135,7 @@
 
       // Update header
       const config = eventConfig[event];
-      document.getElementById('event-title').textContent = config.title;
+      // event-title is hidden, but we can still update subtitle if needed
       document.getElementById('event-subtitle').textContent = config.subtitle;
 
       // Show/hide 10K tab based on event
@@ -2133,9 +2346,28 @@
       return Infinity;
     }
 
+    // Format seconds to time string (H:MM:SS or M:SS)
+    function formatTimeFromSeconds(seconds) {
+      if (seconds === Infinity || seconds < 0) return '-';
+      const hours = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      if (hours > 0) {
+        return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      }
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
 
     function showInitialState() {
       const raceName = currentRace === 'hm' ? 'Half Marathon' : '10K';
+      
+      // Show top 3 performers if we have cached results
+      if (cachedResults && currentTimeFilter === null) {
+        showTopPerformers();
+        return;
+      }
+
       resultsContainer.innerHTML = `
         <div class="no-results">
           <div class="icon">${currentRace === 'hm' ? '🏃' : '🏃‍♀️'}</div>
@@ -2144,6 +2376,32 @@
       `;
       resultsCount.textContent = `${raceName} Results`;
       currentResults = [];
+    }
+
+    // Show top 3 performers for the current race
+    function showTopPerformers() {
+      if (!cachedResults) {
+        showInitialState();
+        return;
+      }
+
+      const raceResults = currentRace === 'hm'
+        ? cachedResults.categories.halfMarathon
+        : cachedResults.categories.tenKm;
+
+      if (raceResults.length === 0) {
+        showInitialState();
+        return;
+      }
+
+      // Get top 3 finishers
+      const top3 = raceResults.slice(0, 3);
+      currentResults = top3;
+      
+      const raceName = currentRace === 'hm' ? 'Half Marathon' : '10K';
+      resultsCount.textContent = `Top 3 ${raceName} Finishers`;
+
+      renderResults();
     }
 
     // Show skeleton loader
@@ -2330,6 +2588,13 @@
         }
 
         currentResults = filtered;
+        // Apply time filter if active
+        if (currentTimeFilter) {
+          currentResults = currentResults.filter(r => {
+            const time = parseTimeToSeconds(r.finishTime);
+            return time >= currentTimeFilter.min && time < currentTimeFilter.max;
+          });
+        }
         renderResults();
 
         // Show pagination info if limited
