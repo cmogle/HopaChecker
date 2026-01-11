@@ -316,16 +316,11 @@ export async function scrapePlus500Results(url: string = 'https://results.hopasp
   return raceData;
 }
 
-export async function scrapeEvoChipResults(url: string): Promise<RaceData> {
-  console.log(`Fetching EvoChip page: ${url}`);
-  
-  const halfMarathon: RaceResult[] = [];
-  const tenKm: RaceResult[] = [];
-
-  // Parse the URL to extract base parameters
-  const urlObj = new URL(url);
-  const distance = urlObj.searchParams.get('distance') || 'hm';
-  const eventId = urlObj.searchParams.get('eventid') || '';
+async function scrapeEvoChipDistance(baseUrl: string, distance: 'hm' | '10k'): Promise<RaceResult[]> {
+  const results: RaceResult[] = [];
+  const urlObj = new URL(baseUrl);
+  urlObj.searchParams.set('distance', distance);
+  const url = urlObj.toString();
 
   // Fetch first page to determine total pages
   const firstPageHtml = await fetchPage(url);
@@ -365,7 +360,7 @@ export async function scrapeEvoChipResults(url: string): Promise<RaceData> {
     }
   }
 
-  console.log(`Found ${totalPages} page(s) to scrape`);
+  console.log(`  Found ${totalPages} page(s) for ${distance === 'hm' ? 'Half Marathon' : '10km'}`);
 
   // Scrape all pages
   for (let page = 1; page <= totalPages; page++) {
@@ -377,7 +372,7 @@ export async function scrapeEvoChipResults(url: string): Promise<RaceData> {
       pageUrl = urlObj.toString();
     }
 
-    console.log(`  Scraping page ${page}/${totalPages}...`);
+    console.log(`    Scraping page ${page}/${totalPages}...`);
     const pageHtml = await fetchPage(pageUrl);
     const $page = cheerio.load(pageHtml);
 
@@ -396,7 +391,7 @@ export async function scrapeEvoChipResults(url: string): Promise<RaceData> {
     });
 
     if (table.length === 0) {
-      console.log(`    No results table found on page ${page}`);
+      console.log(`      No results table found on page ${page}`);
       continue;
     }
 
@@ -446,8 +441,7 @@ export async function scrapeEvoChipResults(url: string): Promise<RaceData> {
       const catRankText = columnMap.catRank !== undefined ? $page(cells.eq(columnMap.catRank)).text().trim() : '';
 
       // Calculate position based on current results count + row index
-      const currentCount = distance === '10k' || distance === '10km' ? tenKm.length : halfMarathon.length;
-      const position = currentCount + rowIndex + 1;
+      const position = results.length + rowIndex + 1;
 
       // Parse gender rank and category rank
       const genderPosition = genderRankText && genderRankText !== '-' && genderRankText !== '' 
@@ -477,41 +471,55 @@ export async function scrapeEvoChipResults(url: string): Promise<RaceData> {
         time15km: time15km || undefined,
       };
 
-      // Categorize based on distance parameter
-      if (distance === '10k' || distance === '10km') {
-        tenKm.push(result);
-      } else {
-        // Default to half marathon
-        halfMarathon.push(result);
-      }
-
+      results.push(result);
       rowIndex++;
     });
 
-    console.log(`    Found ${rowIndex} results on page ${page}`);
+    console.log(`      Found ${rowIndex} results on page ${page}`);
   }
 
-  // Extract event name from the page
+  return results;
+}
+
+export async function scrapeEvoChipResults(url: string): Promise<RaceData> {
+  console.log(`Fetching EvoChip results (both distances): ${url}`);
+  
+  const urlObj = new URL(url);
+  const baseUrlObj = new URL(url);
+  baseUrlObj.searchParams.delete('distance');
+  baseUrlObj.searchParams.delete('page');
+  const baseUrl = baseUrlObj.toString();
+
+  console.log('\n📥 Scraping Half Marathon results...');
+  const halfMarathon = await scrapeEvoChipDistance(baseUrl, 'hm');
+  
+  console.log('\n📥 Scraping 10km results...');
+  const tenKm = await scrapeEvoChipDistance(baseUrl, '10k');
+
   let eventName = 'Marina Home Dubai Creek Striders Half Marathon & 10km 2026';
-  const titleMatch = $('h1, h2, .event-title, title').first().text();
-  if (titleMatch) {
-    eventName = titleMatch.trim();
+  try {
+    const sampleUrlObj = new URL(baseUrl);
+    sampleUrlObj.searchParams.set('distance', 'hm');
+    const sampleHtml = await fetchPage(sampleUrlObj.toString());
+    const $ = cheerio.load(sampleHtml);
+    const titleMatch = $('h1, h2, .event-title, title').first().text();
+    if (titleMatch) eventName = titleMatch.trim();
+  } catch (error) {
+    // Use default event name if extraction fails
   }
 
   const raceData: RaceData = {
     eventName,
-    eventDate: '2026-01-11', // Update if we can extract from page
-    url,
+    eventDate: '2026-01-11',
+    url: baseUrl,
     scrapedAt: new Date().toISOString(),
-    categories: {
-      halfMarathon,
-      tenKm,
-    },
+    categories: { halfMarathon, tenKm },
   };
 
-  console.log(`✅ Scraping complete: ${halfMarathon.length} HM, ${tenKm.length} 10K`);
+  console.log(`\n✅ Scraping complete: ${halfMarathon.length} HM, ${tenKm.length} 10K`);
   return raceData;
 }
+
 
 // Re-export storage functions for backwards compatibility
 export async function saveResults(data: RaceData, eventId: EventId = 'dcs'): Promise<void> {
