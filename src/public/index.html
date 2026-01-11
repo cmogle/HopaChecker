@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DCS Half Marathon & 10K Results</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -117,35 +119,6 @@
       color: #fff;
     }
 
-    .status-bar {
-      background: #fff;
-      border-radius: 8px;
-      padding: 8px 12px;
-      margin-bottom: 12px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      font-size: 0.75rem;
-    }
-    .status-item {
-      color: #666;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .status-dot {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-    }
-    .status-dot.up { background: #22c55e; }
-    .status-dot.down { background: #ef4444; }
-    .status-dot.unknown { background: #f59e0b; }
-
     .search-box {
       background: #fff;
       border-radius: 12px;
@@ -253,7 +226,10 @@
       text-transform: uppercase;
       cursor: pointer;
       user-select: none;
-      position: relative;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: 0 1px 0 #eee;
     }
     .time-header, .pace-header {
       font-weight: 700;
@@ -271,6 +247,87 @@
     .pace-cell {
       color: #166534;
     }
+
+    /* Pace zone colors */
+    .pace-elite { color: #16a34a; font-weight: 700; }
+    .pace-fast { color: #2563eb; font-weight: 600; }
+    .pace-moderate { color: #ca8a04; }
+    .pace-recreational { color: #6b7280; }
+
+    /* Position badges */
+    .position-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .position-gold {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fbbf24;
+    }
+    .position-silver {
+      background: #f3f4f6;
+      color: #374151;
+      border: 1px solid #9ca3af;
+    }
+    .position-bronze {
+      background: #fed7aa;
+      color: #9a3412;
+      border: 1px solid #fb923c;
+    }
+    .position-top10 {
+      background: #dbeafe;
+      color: #1e40af;
+      border: 1px solid #3b82f6;
+    }
+
+    /* Percentile badge */
+    .percentile-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+    .percentile-elite { background: #dcfce7; color: #166534; }
+    .percentile-top25 { background: #dbeafe; color: #1e40af; }
+    .percentile-top50 { background: #fef3c7; color: #92400e; }
+    .percentile-other { background: #f3f4f6; color: #6b7280; }
+
+    /* Enhanced skeleton loader */
+    .skeleton-row {
+      display: grid;
+      grid-template-columns: 60px 70px 1fr 80px 100px 90px;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid #eee;
+      align-items: center;
+    }
+    .skeleton-cell {
+      height: 18px;
+      background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+      border-radius: 4px;
+    }
+    .skeleton-cell.wide { width: 100%; }
+    .skeleton-cell.narrow { width: 60%; }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* Table wrapper for scrollable tables with sticky headers */
+    .table-wrapper {
+      max-height: 60vh;
+      overflow-y: auto;
+      position: relative;
+    }
+
     th:hover {
       background: #e9ecef;
     }
@@ -372,144 +429,116 @@
       cursor: not-allowed;
     }
 
-    /* Mode toggle */
-    .mode-tabs {
+    /* Compare mode toggle (minimal) */
+    .compare-toggle {
       display: flex;
+      align-items: center;
       gap: 8px;
       margin-bottom: 12px;
+      padding: 8px 12px;
       background: #fff;
       border-radius: 8px;
-      padding: 6px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    .mode-tab {
-      flex: 1;
-      padding: 8px 12px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
       font-size: 0.85rem;
-      font-weight: 600;
-      transition: all 0.2s;
-      text-align: center;
-      background: transparent;
       color: #666;
     }
-    .mode-tab:hover {
-      background: #f8f9fa;
-    }
-    .mode-tab.active {
-      background: #0986e6;
-      color: #fff;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-
-    /* Selected athletes panel */
-    .selected-panel {
-      background: #fff;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      display: none;
-    }
-    .selected-panel.visible {
-      display: block;
-    }
-    .selected-panel-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-    .selected-count {
-      font-weight: 600;
-      color: #333;
-      font-size: 0.95rem;
-    }
-    .clear-all-btn {
-      padding: 6px 12px;
-      font-size: 0.85rem;
-      border: 1px solid #e0e0e0;
-      border-radius: 6px;
-      background: #fff;
-      color: #666;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .clear-all-btn:hover {
-      background: #f8f9fa;
-      border-color: #d0d0d0;
-    }
-    .selected-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .selected-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      background: #f8f9fa;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      border: 1px solid #e0e0e0;
-    }
-    .selected-item-name {
-      font-weight: 500;
-      color: #333;
-    }
-    .selected-item-remove {
-      background: none;
-      border: none;
-      color: #dc2626;
-      cursor: pointer;
-      font-size: 1.2rem;
-      line-height: 1;
-      padding: 0;
+    .compare-toggle input[type="checkbox"] {
       width: 18px;
       height: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      transition: background 0.2s;
+      cursor: pointer;
     }
-    .selected-item-remove:hover {
-      background: #fee2e2;
+    .compare-toggle label {
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .compare-toggle .compare-count {
+      margin-left: auto;
+      background: #0986e6;
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: none;
+    }
+    .compare-toggle .compare-count.visible {
+      display: inline-block;
     }
 
-    /* Ranking table */
-    .ranking-box {
+    /* Selected athletes - compact pills for compare mode */
+    .compare-pills {
+      display: none;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .compare-pills.visible {
+      display: flex;
+    }
+    .compare-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: #e0f2fe;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+    }
+    .compare-pill-remove {
+      background: none;
+      border: none;
+      color: #1e40af;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 0;
+      opacity: 0.6;
+    }
+    .compare-pill-remove:hover {
+      opacity: 1;
+    }
+
+    /* Comparison table (hidden by default) */
+    .comparison-box {
       background: #fff;
       border-radius: 12px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       overflow: hidden;
       display: none;
+      margin-bottom: 16px;
     }
-    .ranking-box.visible {
+    .comparison-box.visible {
       display: block;
     }
-    .ranking-header {
+    .comparison-header {
       padding: 12px 16px;
       background: #f0f9ff;
       border-bottom: 1px solid #bfdbfe;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      flex-wrap: wrap;
-      gap: 12px;
     }
-    .ranking-title {
+    .comparison-title {
       font-weight: 600;
       color: #333;
       font-size: 0.95rem;
     }
+    .comparison-clear {
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      background: #fff;
+      color: #666;
+      cursor: pointer;
+    }
+    .comparison-clear:hover {
+      background: #f8f9fa;
+    }
 
-    /* Multi-mode search results */
+    /* Search result items - clickable rows */
     .search-result-item {
       display: flex;
       align-items: center;
@@ -517,14 +546,19 @@
       border-bottom: 1px solid #eee;
       transition: background 0.2s;
       gap: 12px;
+      cursor: pointer;
     }
     .search-result-item:hover {
-      background: #f8f9fa;
+      background: #f0f9ff;
+    }
+    .search-result-item.selected {
+      background: #dbeafe;
+      border-left: 3px solid #3b82f6;
     }
     .search-result-item-content {
       flex: 1;
       display: grid;
-      grid-template-columns: 60px 80px 1fr auto 100px 80px;
+      grid-template-columns: 60px 1fr 80px;
       gap: 12px;
       align-items: center;
     }
@@ -571,26 +605,18 @@
       color: #333;
     }
     .result-item-time {
-      color: #666;
+      color: #1e40af;
       font-family: monospace;
+      font-weight: 600;
     }
     .result-item-bib {
       color: #999;
       font-size: 0.85rem;
     }
 
-    /* Hide elements in multi mode */
-    .single-mode-only {
-      display: block;
-    }
-    .multi-mode-only {
+    /* Mobile card view */
+    .athlete-card {
       display: none;
-    }
-    body.multi-mode .single-mode-only {
-      display: none;
-    }
-    body.multi-mode .multi-mode-only {
-      display: block;
     }
 
     @media (max-width: 600px) {
@@ -602,18 +628,10 @@
       .race-tab .race-icon { font-size: 1.4rem; margin-bottom: 4px; }
       .race-tab .race-name { font-size: 0.9rem; }
       .race-tab .race-count { font-size: 0.7rem; }
-      .status-bar { padding: 6px 10px; margin-bottom: 10px; gap: 8px; font-size: 0.7rem; }
-      .mode-tabs { gap: 6px; margin-bottom: 10px; padding: 4px; }
-      .mode-tab { padding: 6px 10px; font-size: 0.8rem; }
       .search-box { margin-bottom: 12px; padding: 12px; }
       .search-input { font-size: 1rem; padding: 12px 14px; }
       .search-hint { font-size: 0.75rem; }
-      th, td { padding: 10px 6px; font-size: 0.8rem; }
-      .time-cell, .pace-cell { font-size: 0.9rem; }
-      .status-bar { flex-direction: column; gap: 6px; }
       .results-header { flex-direction: column; align-items: flex-start; }
-      table { font-size: 0.8rem; }
-      th.sortable::after { display: none; }
       .mobile-hide {
         display: none;
       }
@@ -626,12 +644,438 @@
       .result-item-category {
         display: none;
       }
-      .selected-panel-header {
-        flex-direction: column;
-        align-items: flex-start;
+
+      /* Hide table on mobile, show cards */
+      .results-box table {
+        display: none;
       }
-      .selected-panel { padding: 12px; margin-bottom: 12px; }
-      .selected-item { padding: 6px 10px; font-size: 0.8rem; }
+      .athlete-cards-container {
+        display: block;
+      }
+      .athlete-card {
+        display: block;
+        background: #fff;
+        border-radius: 10px;
+        padding: 14px;
+        margin: 8px 0;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      }
+      .athlete-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 8px;
+      }
+      .athlete-card-name {
+        font-weight: 600;
+        font-size: 1rem;
+        color: #1f2937;
+        flex: 1;
+      }
+      .athlete-card-position {
+        margin-right: 8px;
+      }
+      .athlete-card-time {
+        font-size: 1.6rem;
+        font-weight: 700;
+        font-family: monospace;
+        color: #1e40af;
+        margin: 8px 0;
+      }
+      .athlete-card-pace {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .athlete-card-details {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 0.8rem;
+        color: #6b7280;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #f3f4f6;
+      }
+      .athlete-card-detail {
+        background: #f9fafb;
+        padding: 4px 8px;
+        border-radius: 4px;
+      }
+      .athlete-card-detail strong {
+        color: #374151;
+      }
+      .athlete-card-percentile {
+        margin-left: 8px;
+      }
+      .athlete-card-actions {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #f3f4f6;
+      }
+      .skeleton-row {
+        grid-template-columns: 1fr;
+        padding: 16px;
+      }
+      .skeleton-card {
+        background: #fff;
+        border-radius: 10px;
+        padding: 14px;
+        margin: 8px 0;
+        border: 1px solid #e5e7eb;
+      }
+      .skeleton-card .skeleton-cell {
+        margin-bottom: 8px;
+      }
+      .skeleton-card .skeleton-cell:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    @media (min-width: 601px) {
+      .athlete-cards-container {
+        display: none;
+      }
+    }
+
+    /* Trophy Case Section */
+    .trophy-case {
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      display: none;
+    }
+    .trophy-case.visible {
+      display: block;
+    }
+    .trophy-case-header {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .trophy-case-name {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #1e40af;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .trophy-case-event {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin-top: 4px;
+    }
+    .trophy-stats {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .trophy-stat {
+      background: #fff;
+      border-radius: 10px;
+      padding: 12px 20px;
+      text-align: center;
+      min-width: 100px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .trophy-stat-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      color: #64748b;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .trophy-stat-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #1e40af;
+      line-height: 1;
+    }
+    .trophy-stat-total {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+    .trophy-stat-percentile {
+      margin-top: 4px;
+    }
+    .trophy-time-section {
+      text-align: center;
+      padding: 16px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .trophy-time {
+      font-size: 2.5rem;
+      font-weight: 700;
+      font-family: monospace;
+      color: #1e40af;
+    }
+    .trophy-pace {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    .trophy-gap-analysis {
+      margin-top: 16px;
+      padding: 12px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .trophy-gap-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 0.85rem;
+    }
+    .trophy-gap-item:last-child {
+      border-bottom: none;
+    }
+    .trophy-gap-label {
+      color: #64748b;
+    }
+    .trophy-gap-value {
+      font-weight: 600;
+      font-family: monospace;
+    }
+    .trophy-gap-ahead {
+      color: #16a34a;
+    }
+    .trophy-gap-behind {
+      color: #dc2626;
+    }
+
+    @media (max-width: 600px) {
+      .trophy-case { padding: 14px; }
+      .trophy-case-name { font-size: 1.1rem; }
+      .trophy-stats { gap: 10px; }
+      .trophy-stat { padding: 10px 14px; min-width: 80px; }
+      .trophy-stat-value { font-size: 1.4rem; }
+      .trophy-time { font-size: 2rem; }
+    }
+
+    /* Data Visualization Section */
+    .charts-section {
+      background: #fff;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+      display: none;
+    }
+    .charts-section.visible {
+      display: block;
+    }
+    .charts-header {
+      padding: 12px 16px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .charts-title {
+      font-weight: 600;
+      color: #333;
+      font-size: 0.95rem;
+    }
+    .charts-toggle {
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .charts-toggle:hover {
+      background: #f8f9fa;
+    }
+    .charts-toggle.expanded::after {
+      content: ' ▲';
+    }
+    .charts-toggle:not(.expanded)::after {
+      content: ' ▼';
+    }
+    .charts-content {
+      padding: 16px;
+      display: none;
+    }
+    .charts-content.visible {
+      display: block;
+    }
+    .chart-container {
+      margin-bottom: 20px;
+      position: relative;
+      height: 250px;
+    }
+    .chart-container:last-child {
+      margin-bottom: 0;
+    }
+    .chart-label {
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: #374151;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .chart-label-icon {
+      font-size: 1.1rem;
+    }
+    @media (max-width: 600px) {
+      .chart-container {
+        height: 200px;
+      }
+    }
+
+    /* Shareable Image Template */
+    .share-template {
+      position: fixed;
+      left: -9999px;
+      top: 0;
+      z-index: -1;
+    }
+    .share-card {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1f2937;
+    }
+    .share-card-landscape {
+      width: 1200px;
+      height: 630px;
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #dbeafe 100%);
+    }
+    .share-card-square {
+      width: 1080px;
+      height: 1080px;
+      padding: 60px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #dbeafe 100%);
+    }
+    .share-card-header {
+      text-align: center;
+    }
+    .share-card-logo {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #0986e6;
+      margin-bottom: 8px;
+    }
+    .share-card-event {
+      font-size: 1.1rem;
+      color: #64748b;
+    }
+    .share-card-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+    .share-card-name {
+      font-size: 2.8rem;
+      font-weight: 700;
+      color: #1e40af;
+      margin-bottom: 20px;
+    }
+    .share-card-time {
+      font-size: 5rem;
+      font-weight: 700;
+      font-family: monospace;
+      color: #1e40af;
+      line-height: 1;
+      margin-bottom: 20px;
+    }
+    .share-card-stats {
+      display: flex;
+      gap: 40px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .share-card-stat {
+      text-align: center;
+    }
+    .share-card-stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #1e40af;
+    }
+    .share-card-stat-label {
+      font-size: 0.9rem;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+    .share-card-pace {
+      font-size: 1.8rem;
+      font-weight: 600;
+      color: #166534;
+      margin-top: 20px;
+    }
+    .share-card-footer {
+      text-align: center;
+      font-size: 0.9rem;
+      color: #94a3b8;
+    }
+
+    /* Share button in trophy case */
+    .trophy-share-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #e0e7ff;
+    }
+    .share-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .share-btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .share-btn-landscape {
+      background: #3b82f6;
+      color: white;
+    }
+    .share-btn-landscape:hover {
+      background: #2563eb;
+    }
+    .share-btn-square {
+      background: #ec4899;
+      color: white;
+    }
+    .share-btn-square:hover {
+      background: #db2777;
+    }
+    .share-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
   </style>
 </head>
@@ -664,79 +1108,73 @@
       </button>
     </div>
 
-    <div class="status-bar" id="status-bar">
-      <span class="status-item">Loading...</span>
-    </div>
-
-    <div class="mode-tabs">
-      <button class="mode-tab" data-mode="single" onclick="toggleMode('single')">
-        Single Search
-      </button>
-      <button class="mode-tab active" data-mode="multi" onclick="toggleMode('multi')">
-        Multi-Athlete Ranking
-      </button>
-    </div>
-
-    <div class="selected-panel" id="selected-panel">
-      <div class="selected-panel-header">
-        <span class="selected-count" id="selected-count">0 athletes selected</span>
-        <button class="clear-all-btn" onclick="clearSelection()">Clear All</button>
-      </div>
-      <div class="selected-list" id="selected-list"></div>
-    </div>
-
     <div class="search-box">
       <input
         type="text"
         class="search-input hm-active"
         id="search-input"
-        placeholder="Search by name..."
+        placeholder="Search for an athlete..."
         autocomplete="off"
       >
-      <p class="search-hint">Fuzzy search enabled - finds similar names • Press / to focus</p>
+      <p class="search-hint">Press / to focus • Click a result to view details</p>
     </div>
 
     <div id="error-container"></div>
 
-    <div class="results-box multi-mode-only" id="multi-results-box" style="display: none;">
-      <div class="results-header hm-active" id="multi-results-header">
-        <span class="results-count" id="multi-results-count">Search results</span>
+    <!-- Trophy Case - shown when athlete is selected -->
+    <div class="trophy-case" id="trophy-case"></div>
+
+    <!-- Charts section - shown when athlete is selected -->
+    <div class="charts-section" id="charts-section">
+      <div class="charts-header">
+        <span class="charts-title">Race Analytics</span>
+        <button class="charts-toggle expanded" id="charts-toggle" onclick="toggleCharts()">Hide</button>
       </div>
-      <div id="multi-results-container">
-        <div class="no-results">
-          <div class="icon">🔍</div>
-          <div>Search for athletes to add to ranking</div>
+      <div class="charts-content visible" id="charts-content">
+        <div class="chart-container">
+          <div class="chart-label"><span class="chart-label-icon">📊</span> Finish Time Distribution</div>
+          <canvas id="distribution-chart"></canvas>
+        </div>
+        <div class="chart-container">
+          <div class="chart-label"><span class="chart-label-icon">📈</span> Split Pace Comparison</div>
+          <canvas id="pace-chart"></canvas>
         </div>
       </div>
     </div>
 
-    <div class="ranking-box" id="ranking-box">
-      <div class="ranking-header">
-        <span class="ranking-title" id="ranking-title">Ranking (0 athletes)</span>
-      </div>
-      <div id="ranking-container">
-        <div class="no-results">
-          <div class="icon">👥</div>
-          <div>Select athletes to compare rankings</div>
-        </div>
-      </div>
+    <!-- Compare mode toggle and pills -->
+    <div class="compare-toggle" id="compare-toggle">
+      <input type="checkbox" id="compare-mode-checkbox" onchange="toggleCompareMode()">
+      <label for="compare-mode-checkbox">Compare multiple athletes</label>
+      <span class="compare-count" id="compare-count">0</span>
     </div>
 
-    <div class="results-box single-mode-only">
+    <div class="compare-pills" id="compare-pills"></div>
+
+    <!-- Comparison table (only in compare mode) -->
+    <div class="comparison-box" id="comparison-box">
+      <div class="comparison-header">
+        <span class="comparison-title" id="comparison-title">Comparison (0 athletes)</span>
+        <button class="comparison-clear" onclick="clearComparison()">Clear All</button>
+      </div>
+      <div id="comparison-container"></div>
+    </div>
+
+    <!-- Search results -->
+    <div class="results-box" id="results-box">
       <div class="results-header hm-active" id="results-header">
-        <span class="results-count" id="results-count">Select a race above</span>
-        <div class="download-btns">
-          <a href="/api/download/csv" class="btn btn-secondary" id="csv-download">CSV</a>
-          <a href="/api/download/json" class="btn btn-primary" id="json-download">JSON</a>
-        </div>
+        <span class="results-count" id="results-count">Search for an athlete</span>
       </div>
       <div id="results-container">
         <div class="no-results">
-          <div class="icon">👆</div>
-          <div>Select a race and search for a name</div>
+          <div class="icon">🔍</div>
+          <div>Enter a name above to find race results</div>
         </div>
       </div>
     </div>
+
+    <!-- Hidden share template for image generation -->
+    <div class="share-template" id="share-template"></div>
   </div>
 
   <script>
@@ -744,23 +1182,719 @@
     const resultsContainer = document.getElementById('results-container');
     const resultsCount = document.getElementById('results-count');
     const resultsHeader = document.getElementById('results-header');
-    const statusBar = document.getElementById('status-bar');
     const errorContainer = document.getElementById('error-container');
     const hmCountEl = document.getElementById('hm-count');
     const tenkCountEl = document.getElementById('tenk-count');
-    const csvDownload = document.getElementById('csv-download');
-    const jsonDownload = document.getElementById('json-download');
 
     let debounceTimer;
     let currentEvent = 'dcs';
     let currentRace = 'hm';
     let cachedResults = null;
     let currentResults = [];
-    let currentSort = { column: null, direction: 'asc' };
     let searchQuery = '';
-    let currentMode = 'multi';
-    let selectedAthletes = [];
-    let rankingSort = { column: 'finishTime', direction: 'asc' };
+    let selectedAthlete = null;  // Single athlete for primary view
+    let compareMode = false;     // Toggle for multi-athlete comparison
+    let comparedAthletes = [];   // Athletes being compared
+
+    // Client-side caching
+    const resultsCache = new Map(); // Key: 'event_race', Value: { data, timestamp, scrapedAt }
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+    // Helper: Get pace zone class based on pace (min:sec/km format)
+    function getPaceZoneClass(pace) {
+      if (!pace) return '';
+      const match = pace.match(/(\d+):(\d+)/);
+      if (!match) return '';
+      const totalSeconds = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+      if (totalSeconds < 240) return 'pace-elite';      // < 4:00/km
+      if (totalSeconds < 300) return 'pace-fast';       // < 5:00/km
+      if (totalSeconds < 360) return 'pace-moderate';   // < 6:00/km
+      return 'pace-recreational';
+    }
+
+    // Helper: Get position badge HTML
+    function getPositionBadgeHtml(position, total) {
+      const pos = parseInt(position, 10);
+      if (pos === 1) return `<span class="position-badge position-gold">🥇 ${pos}</span>`;
+      if (pos === 2) return `<span class="position-badge position-silver">🥈 ${pos}</span>`;
+      if (pos === 3) return `<span class="position-badge position-bronze">🥉 ${pos}</span>`;
+      if (total && pos <= Math.ceil(total * 0.1)) {
+        return `<span class="position-badge position-top10">${pos}</span>`;
+      }
+      return pos;
+    }
+
+    // Helper: Calculate percentile
+    function calculatePercentile(rank, total) {
+      if (!rank || !total) return null;
+      return Math.round(((total - rank) / total) * 100);
+    }
+
+    // Helper: Get percentile badge HTML
+    function getPercentileBadgeHtml(rank, total) {
+      const percentile = calculatePercentile(rank, total);
+      if (percentile === null) return '';
+      let className = 'percentile-other';
+      if (percentile >= 90) className = 'percentile-elite';
+      else if (percentile >= 75) className = 'percentile-top25';
+      else if (percentile >= 50) className = 'percentile-top50';
+      return `<span class="percentile-badge ${className}">Top ${100 - percentile}%</span>`;
+    }
+
+    // Helper: Get total count for current race
+    function getTotalForRace() {
+      if (!cachedResults) return 0;
+      if (currentRace === 'hm') {
+        return cachedResults.categories.halfMarathon.length;
+      }
+      return cachedResults.categories.tenKm.length;
+    }
+
+    // Helper: Generate athlete card HTML for mobile view
+    function generateAthleteCardHtml(athlete, total, showAddButton = false, isSelected = false) {
+      const positionHtml = getPositionBadgeHtml(athlete.position, total);
+      const percentileHtml = getPercentileBadgeHtml(athlete.position, total);
+      const paceClass = getPaceZoneClass(athlete.pace);
+
+      let actionHtml = '';
+      if (showAddButton) {
+        actionHtml = `
+          <div class="athlete-card-actions">
+            <button class="search-result-add-btn" style="width: 100%; height: 36px; font-size: 0.9rem;"
+                    ${isSelected ? 'disabled' : ''}
+                    data-name="${escapeHtml(athlete.name)}"
+                    data-race="${athlete.race}">
+              ${isSelected ? '✓ Added' : '+ Add to Comparison'}
+            </button>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="athlete-card">
+          <div class="athlete-card-header">
+            <span class="athlete-card-position">${positionHtml}</span>
+            <span class="athlete-card-name">${escapeHtml(athlete.name)}${percentileHtml}</span>
+          </div>
+          <div class="athlete-card-time">${athlete.finishTime || '-'}</div>
+          <div class="athlete-card-pace ${paceClass}">Pace: ${athlete.pace || '-'}</div>
+          <div class="athlete-card-details">
+            ${athlete.gender ? `<span class="athlete-card-detail"><strong>Gender:</strong> ${athlete.gender}${athlete.genderPosition ? ` (#${athlete.genderPosition})` : ''}</span>` : ''}
+            ${athlete.category ? `<span class="athlete-card-detail"><strong>Category:</strong> ${athlete.category}${athlete.categoryPosition ? ` (#${athlete.categoryPosition})` : ''}</span>` : ''}
+            ${athlete.country ? `<span class="athlete-card-detail"><strong>Country:</strong> ${athlete.country}</span>` : ''}
+            ${athlete.bibNumber ? `<span class="athlete-card-detail"><strong>Bib:</strong> ${athlete.bibNumber}</span>` : ''}
+          </div>
+          ${actionHtml}
+        </div>
+      `;
+    }
+
+    // Helper: Format seconds as time difference
+    function formatTimeDifference(seconds) {
+      if (seconds === 0) return '0:00';
+      const mins = Math.floor(Math.abs(seconds) / 60);
+      const secs = Math.abs(seconds) % 60;
+      const sign = seconds > 0 ? '+' : '-';
+      return `${sign}${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Helper: Find adjacent athletes for gap analysis
+    function findAdjacentAthletes(athlete) {
+      if (!cachedResults) return { prev: null, next: null };
+
+      const raceResults = currentRace === 'hm'
+        ? cachedResults.categories.halfMarathon
+        : cachedResults.categories.tenKm;
+
+      const position = parseInt(athlete.position, 10);
+      const prev = raceResults.find(r => r.position === position - 1);
+      const next = raceResults.find(r => r.position === position + 1);
+
+      return { prev, next };
+    }
+
+    // Render Trophy Case for selected athlete
+    function renderTrophyCase() {
+      const trophyCaseEl = document.getElementById('trophy-case');
+      const raceName = currentRace === 'hm' ? 'Half Marathon' : '10km';
+
+      // Show trophy case when an athlete is selected
+      if (!selectedAthlete) {
+        trophyCaseEl.classList.remove('visible');
+        return;
+      }
+
+      const athlete = selectedAthlete;
+      const total = getTotalForRace();
+      const paceClass = getPaceZoneClass(athlete.pace);
+
+      // Get gender and category totals (estimate from position percentages if available)
+      const genderTotal = athlete.genderPosition ? Math.round(athlete.genderPosition / (calculatePercentile(athlete.position, total) / 100) * ((100 - calculatePercentile(athlete.position, total)) / 100 + 1)) : null;
+      const categoryTotal = athlete.categoryPosition ? Math.round(athlete.categoryPosition / (calculatePercentile(athlete.position, total) / 100) * ((100 - calculatePercentile(athlete.position, total)) / 100 + 1)) : null;
+
+      // Get adjacent athletes for gap analysis
+      const { prev, next } = findAdjacentAthletes(athlete);
+
+      let gapHtml = '';
+      if (prev || next) {
+        gapHtml = '<div class="trophy-gap-analysis">';
+        if (prev) {
+          const prevSeconds = parseTimeToSeconds(prev.finishTime);
+          const athleteSeconds = parseTimeToSeconds(athlete.finishTime);
+          const gap = athleteSeconds - prevSeconds;
+          gapHtml += `
+            <div class="trophy-gap-item">
+              <span class="trophy-gap-label">Gap to #${prev.position}</span>
+              <span class="trophy-gap-value trophy-gap-behind">${formatTimeDifference(gap)} behind</span>
+            </div>
+          `;
+        }
+        if (next) {
+          const nextSeconds = parseTimeToSeconds(next.finishTime);
+          const athleteSeconds = parseTimeToSeconds(athlete.finishTime);
+          const gap = nextSeconds - athleteSeconds;
+          gapHtml += `
+            <div class="trophy-gap-item">
+              <span class="trophy-gap-label">Gap to #${next.position}</span>
+              <span class="trophy-gap-value trophy-gap-ahead">${formatTimeDifference(gap)} ahead</span>
+            </div>
+          `;
+        }
+        gapHtml += '</div>';
+      }
+
+      const html = `
+        <div class="trophy-case-header">
+          <div class="trophy-case-name">🏆 ${escapeHtml(athlete.name)}</div>
+          <div class="trophy-case-event">${eventConfig[currentEvent].title} - ${raceName}</div>
+        </div>
+
+        <div class="trophy-stats">
+          <div class="trophy-stat">
+            <div class="trophy-stat-label">Overall</div>
+            <div class="trophy-stat-value">${athlete.position}</div>
+            <div class="trophy-stat-total">/ ${total}</div>
+            <div class="trophy-stat-percentile">${getPercentileBadgeHtml(athlete.position, total)}</div>
+          </div>
+          ${athlete.genderPosition ? `
+          <div class="trophy-stat">
+            <div class="trophy-stat-label">Gender (${athlete.gender || '?'})</div>
+            <div class="trophy-stat-value">${athlete.genderPosition}</div>
+            ${genderTotal ? `<div class="trophy-stat-total">/ ~${genderTotal}</div>` : ''}
+          </div>
+          ` : ''}
+          ${athlete.categoryPosition ? `
+          <div class="trophy-stat">
+            <div class="trophy-stat-label">Category</div>
+            <div class="trophy-stat-value">${athlete.categoryPosition}</div>
+            <div class="trophy-stat-total">${athlete.category || ''}</div>
+          </div>
+          ` : ''}
+        </div>
+
+        <div class="trophy-time-section">
+          <div class="trophy-time">${athlete.finishTime || '-'}</div>
+          <div class="trophy-pace ${paceClass}">Pace: ${athlete.pace || '-'}</div>
+        </div>
+
+        ${gapHtml}
+
+        <div class="trophy-share-section">
+          <div class="share-buttons">
+            <button class="share-btn share-btn-landscape" onclick="generateShareableImage('landscape')">
+              📤 Share (Twitter/FB)
+            </button>
+            <button class="share-btn share-btn-square" onclick="generateShareableImage('square')">
+              📸 Share (Instagram)
+            </button>
+          </div>
+        </div>
+      `;
+
+      trophyCaseEl.innerHTML = html;
+      trophyCaseEl.classList.add('visible');
+    }
+
+    // Generate shareable image
+    window.generateShareableImage = async function(format) {
+      if (!selectedAthlete) return;
+
+      const raceName = currentRace === 'hm' ? 'Half Marathon' : '10km';
+      const athlete = selectedAthlete;
+      const total = getTotalForRace();
+      const percentile = calculatePercentile(athlete.position, total);
+
+      const templateEl = document.getElementById('share-template');
+      const isLandscape = format === 'landscape';
+
+      const templateHtml = `
+        <div class="share-card ${isLandscape ? 'share-card-landscape' : 'share-card-square'}">
+          <div class="share-card-header">
+            <div class="share-card-logo">🏃 HopaChecker</div>
+            <div class="share-card-event">${eventConfig[currentEvent].title} - ${raceName}</div>
+          </div>
+          <div class="share-card-content">
+            <div class="share-card-name">${escapeHtml(athlete.name)}</div>
+            <div class="share-card-time">${athlete.finishTime || '-'}</div>
+            <div class="share-card-stats">
+              <div class="share-card-stat">
+                <div class="share-card-stat-value">#${athlete.position}</div>
+                <div class="share-card-stat-label">Overall / ${total}</div>
+              </div>
+              ${percentile !== null ? `
+              <div class="share-card-stat">
+                <div class="share-card-stat-value">Top ${100 - percentile}%</div>
+                <div class="share-card-stat-label">Percentile</div>
+              </div>
+              ` : ''}
+              ${athlete.genderPosition ? `
+              <div class="share-card-stat">
+                <div class="share-card-stat-value">#${athlete.genderPosition}</div>
+                <div class="share-card-stat-label">Gender (${athlete.gender || '?'})</div>
+              </div>
+              ` : ''}
+            </div>
+            <div class="share-card-pace">Pace: ${athlete.pace || '-'}</div>
+          </div>
+          <div class="share-card-footer">
+            Generated with HopaChecker • hopachecker.com
+          </div>
+        </div>
+      `;
+
+      templateEl.innerHTML = templateHtml;
+
+      // Disable buttons during generation
+      const buttons = document.querySelectorAll('.share-btn');
+      buttons.forEach(btn => btn.disabled = true);
+
+      try {
+        const card = templateEl.querySelector('.share-card');
+
+        const canvas = await html2canvas(card, {
+          backgroundColor: null,
+          scale: 2,
+          logging: false,
+          useCORS: true
+        });
+
+        // Download the image
+        const link = document.createElement('a');
+        const fileName = `${athlete.name.replace(/\s+/g, '_')}_${raceName.replace(/\s+/g, '_')}_result.png`;
+        link.download = fileName;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+
+      } catch (error) {
+        console.error('Error generating image:', error);
+        alert('Error generating image. Please try again.');
+      } finally {
+        buttons.forEach(btn => btn.disabled = false);
+        templateEl.innerHTML = '';
+      }
+    };
+
+    // Chart instances
+    let distributionChart = null;
+    let paceChart = null;
+    let chartsExpanded = true;
+
+    // Toggle charts visibility
+    window.toggleCharts = function() {
+      chartsExpanded = !chartsExpanded;
+      const content = document.getElementById('charts-content');
+      const toggle = document.getElementById('charts-toggle');
+      if (chartsExpanded) {
+        content.classList.add('visible');
+        toggle.classList.add('expanded');
+        toggle.textContent = 'Hide';
+      } else {
+        content.classList.remove('visible');
+        toggle.classList.remove('expanded');
+        toggle.textContent = 'Show';
+      }
+    };
+
+    // Generate color palette for athletes
+    function getAthleteColor(index) {
+      const colors = [
+        '#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6',
+        '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+      ];
+      return colors[index % colors.length];
+    }
+
+    // Render distribution chart (histogram of finish times)
+    function renderDistributionChart() {
+      if (!cachedResults) return;
+
+      const chartEl = document.getElementById('charts-section');
+
+      // Get athletes to show (selected + compared)
+      const athletesToShow = [];
+      if (selectedAthlete) athletesToShow.push(selectedAthlete);
+      athletesToShow.push(...comparedAthletes);
+
+      // Only show charts when athletes are selected
+      if (athletesToShow.length === 0) {
+        chartEl.classList.remove('visible');
+        return;
+      }
+
+      chartEl.classList.add('visible');
+
+      const raceResults = currentRace === 'hm'
+        ? cachedResults.categories.halfMarathon
+        : cachedResults.categories.tenKm;
+
+      // Create histogram bins (5-minute intervals)
+      const times = raceResults.map(r => parseTimeToSeconds(r.finishTime)).filter(t => t !== Infinity);
+      if (times.length === 0) return;
+
+      const minTime = Math.floor(Math.min(...times) / 300) * 300;
+      const maxTime = Math.ceil(Math.max(...times) / 300) * 300;
+      const bins = [];
+      const binLabels = [];
+
+      for (let t = minTime; t < maxTime; t += 300) {
+        bins.push(times.filter(time => time >= t && time < t + 300).length);
+        const mins = Math.floor(t / 60);
+        const hours = Math.floor(mins / 60);
+        const remainingMins = mins % 60;
+        binLabels.push(`${hours}:${remainingMins.toString().padStart(2, '0')}`);
+      }
+
+      // Find selected athletes' bins for annotation
+      const athleteMarkers = athletesToShow.map((athlete, index) => {
+        const seconds = parseTimeToSeconds(athlete.finishTime);
+        const binIndex = Math.floor((seconds - minTime) / 300);
+        return {
+          name: athlete.name,
+          binIndex,
+          color: getAthleteColor(index)
+        };
+      });
+
+      const ctx = document.getElementById('distribution-chart').getContext('2d');
+
+      if (distributionChart) {
+        distributionChart.destroy();
+      }
+
+      distributionChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: binLabels,
+          datasets: [{
+            label: 'Finishers',
+            data: bins,
+            backgroundColor: bins.map((_, i) => {
+              const markedAthlete = athleteMarkers.find(m => m.binIndex === i);
+              return markedAthlete ? markedAthlete.color + '80' : '#e2e8f0';
+            }),
+            borderColor: bins.map((_, i) => {
+              const markedAthlete = athleteMarkers.find(m => m.binIndex === i);
+              return markedAthlete ? markedAthlete.color : '#cbd5e1';
+            }),
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                afterLabel: function(context) {
+                  const marker = athleteMarkers.find(m => m.binIndex === context.dataIndex);
+                  return marker ? `★ ${marker.name}` : '';
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Finishers' }
+            },
+            x: {
+              title: { display: true, text: 'Finish Time' }
+            }
+          }
+        }
+      });
+    }
+
+    // Render split pace line chart
+    function renderPaceChart() {
+      if (!cachedResults) return;
+
+      // Get athletes to show (selected + compared)
+      const athletesToShow = [];
+      if (selectedAthlete) athletesToShow.push(selectedAthlete);
+      athletesToShow.push(...comparedAthletes);
+
+      if (athletesToShow.length === 0) return;
+
+      const ctx = document.getElementById('pace-chart').getContext('2d');
+
+      if (paceChart) {
+        paceChart.destroy();
+      }
+
+      // Calculate pace per split
+      const splits = currentRace === 'hm'
+        ? ['Start', '5km', '10km', '13km', '15km', 'Finish']
+        : ['Start', '5km', 'Finish'];
+
+      const distances = currentRace === 'hm'
+        ? [0, 5, 10, 13, 15, 21.0975]
+        : [0, 5, 10];
+
+      const datasets = athletesToShow.map((athlete, index) => {
+        let times = [];
+        if (currentRace === 'hm') {
+          times = [
+            0,
+            parseTimeToSeconds(athlete.time5km),
+            parseTimeToSeconds(athlete.time10km),
+            parseTimeToSeconds(athlete.time13km),
+            parseTimeToSeconds(athlete.time15km),
+            parseTimeToSeconds(athlete.finishTime)
+          ];
+        } else {
+          times = [
+            0,
+            parseTimeToSeconds(athlete.time5km),
+            parseTimeToSeconds(athlete.finishTime)
+          ];
+        }
+
+        // Calculate pace per segment (min/km)
+        const paces = [];
+        for (let i = 1; i < times.length; i++) {
+          if (times[i] === Infinity || times[i - 1] === Infinity) {
+            paces.push(null);
+          } else {
+            const segmentTime = times[i] - times[i - 1];
+            const segmentDistance = distances[i] - distances[i - 1];
+            const paceSeconds = segmentTime / segmentDistance;
+            paces.push(paceSeconds / 60); // Convert to minutes per km
+          }
+        }
+
+        return {
+          label: athlete.name,
+          data: [null, ...paces], // First point is null (start)
+          borderColor: getAthleteColor(index),
+          backgroundColor: getAthleteColor(index) + '20',
+          tension: 0.3,
+          fill: false,
+          pointRadius: 4,
+          pointHoverRadius: 6
+        };
+      });
+
+      paceChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: splits,
+          datasets: datasets
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'bottom'
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  if (context.parsed.y === null) return '';
+                  const mins = Math.floor(context.parsed.y);
+                  const secs = Math.round((context.parsed.y - mins) * 60);
+                  return `${context.dataset.label}: ${mins}:${secs.toString().padStart(2, '0')}/km`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              reverse: true, // Lower pace (faster) at top
+              title: { display: true, text: 'Pace (min/km)' },
+              ticks: {
+                callback: function(value) {
+                  const mins = Math.floor(value);
+                  const secs = Math.round((value - mins) * 60);
+                  return `${mins}:${secs.toString().padStart(2, '0')}`;
+                }
+              }
+            },
+            x: {
+              title: { display: true, text: 'Split Point' }
+            }
+          }
+        }
+      });
+    }
+
+    // Update all charts
+    function updateCharts() {
+      renderDistributionChart();
+      renderPaceChart();
+    }
+
+    // Toggle compare mode
+    window.toggleCompareMode = function() {
+      compareMode = document.getElementById('compare-mode-checkbox').checked;
+      if (compareMode) {
+        document.body.classList.add('compare-mode');
+      } else {
+        document.body.classList.remove('compare-mode');
+        // Keep compared athletes but hide comparison UI
+      }
+      renderComparePills();
+      renderComparisonTable();
+      updateURLFunc();
+    };
+
+    // Add athlete to comparison
+    function addToComparison(athlete) {
+      if (comparedAthletes.some(a => a.bibNumber === athlete.bibNumber)) return;
+      comparedAthletes.push(athlete);
+
+      // Auto-enable compare mode when athletes are added
+      if (!compareMode) {
+        compareMode = true;
+        document.getElementById('compare-mode-checkbox').checked = true;
+        document.body.classList.add('compare-mode');
+      }
+
+      renderComparePills();
+      renderComparisonTable();
+      updateCharts();
+      updateURLFunc();
+      // Update compare count
+      const countEl = document.getElementById('compare-count');
+      countEl.textContent = comparedAthletes.length;
+      countEl.classList.toggle('visible', comparedAthletes.length > 0);
+    }
+
+    // Remove athlete from comparison
+    function removeFromComparison(bibNumber) {
+      comparedAthletes = comparedAthletes.filter(a => a.bibNumber !== bibNumber);
+      renderComparePills();
+      renderComparisonTable();
+      updateCharts();
+      updateURLFunc();
+      const countEl = document.getElementById('compare-count');
+      countEl.textContent = comparedAthletes.length;
+      countEl.classList.toggle('visible', comparedAthletes.length > 0);
+    }
+
+    // Clear all comparison
+    window.clearComparison = function() {
+      comparedAthletes = [];
+      renderComparePills();
+      renderComparisonTable();
+      updateCharts();
+      updateURLFunc();
+      const countEl = document.getElementById('compare-count');
+      countEl.textContent = '0';
+      countEl.classList.remove('visible');
+    };
+
+    // Render compare pills
+    function renderComparePills() {
+      const pillsEl = document.getElementById('compare-pills');
+      if (!compareMode || comparedAthletes.length === 0) {
+        pillsEl.classList.remove('visible');
+        pillsEl.innerHTML = '';
+        return;
+      }
+
+      pillsEl.classList.add('visible');
+      pillsEl.innerHTML = comparedAthletes.map(a => `
+        <span class="compare-pill">
+          ${escapeHtml(a.name)}
+          <button class="compare-pill-remove" onclick="removeFromComparison('${a.bibNumber}')" title="Remove">×</button>
+        </span>
+      `).join('');
+    }
+
+    // Render comparison table
+    function renderComparisonTable() {
+      const comparisonBox = document.getElementById('comparison-box');
+      const comparisonContainer = document.getElementById('comparison-container');
+      const comparisonTitle = document.getElementById('comparison-title');
+
+      if (!compareMode || comparedAthletes.length === 0) {
+        comparisonBox.classList.remove('visible');
+        return;
+      }
+
+      comparisonBox.classList.add('visible');
+      comparisonTitle.textContent = `Comparison (${comparedAthletes.length} athletes)`;
+
+      // Sort by finish time
+      const sorted = [...comparedAthletes].sort((a, b) => {
+        const timeA = parseTimeToSeconds(a.finishTime);
+        const timeB = parseTimeToSeconds(b.finishTime);
+        return timeA - timeB;
+      });
+
+      const total = getTotalForRace();
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th>Pos</th>
+              <th>Name</th>
+              <th class="time-header">Time</th>
+              <th class="pace-header">Pace</th>
+              <th class="mobile-hide">Gender</th>
+              <th class="mobile-hide">Category</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      for (const athlete of sorted) {
+        const positionHtml = getPositionBadgeHtml(athlete.position, total);
+        const paceClass = getPaceZoneClass(athlete.pace);
+        html += `
+          <tr>
+            <td>${positionHtml}</td>
+            <td class="name-cell">${escapeHtml(athlete.name)}</td>
+            <td class="time-cell">${athlete.finishTime || '-'}</td>
+            <td class="pace-cell ${paceClass}">${athlete.pace || '-'}</td>
+            <td class="mobile-hide">${athlete.gender || '-'} ${athlete.genderPosition ? `(#${athlete.genderPosition})` : ''}</td>
+            <td class="mobile-hide">${athlete.category || '-'} ${athlete.categoryPosition ? `(#${athlete.categoryPosition})` : ''}</td>
+          </tr>
+        `;
+      }
+
+      html += '</tbody></table>';
+      comparisonContainer.innerHTML = html;
+    }
+
+    // Select an athlete (primary view)
+    function selectAthlete(athlete) {
+      selectedAthlete = athlete;
+      renderTrophyCase();
+      updateCharts();
+      updateURLFunc();
+
+      // Highlight selected in search results
+      document.querySelectorAll('.search-result-item').forEach(item => {
+        item.classList.remove('selected');
+      });
+      const selectedEl = document.querySelector(`.search-result-item[data-bib="${athlete.bibNumber}"]`);
+      if (selectedEl) selectedEl.classList.add('selected');
+    }
 
     // Event configuration
     const eventConfig = {
@@ -815,10 +1949,6 @@
       // Clear cached results and reload
       cachedResults = null;
       loadResultCounts();
-      loadStatus();
-
-      // Update download links
-      updateDownloadLinks();
 
       // Re-run search if there's a query
       if (searchInput.value.trim()) {
@@ -830,19 +1960,19 @@
     }
 
     // Load state from URL on page load
-    function loadStateFromURL() {
+    async function loadStateFromURL() {
       const params = new URLSearchParams(window.location.search);
       const event = params.get('event');
       const race = params.get('race');
       const query = params.get('q');
-      const mode = params.get('mode');
-      
+      const athleteBib = params.get('bib');  // Single athlete by bib
+
       if (event === 'plus500') {
         selectEvent('plus500', false);
       } else {
         selectEvent('dcs', false);
       }
-      
+
       if (race === 'tenk' || race === '10k') {
         currentRace = 'tenk';
         selectRace('tenk', false);
@@ -850,26 +1980,41 @@
         currentRace = 'hm';
         selectRace('hm', false);
       }
-      
-      if (mode === 'single') {
-        toggleMode('single', false);
-      } else {
-        // Default to multi mode
-        toggleMode('multi', false);
-        // Load selected athletes from URL if present
-        const selected = params.get('selected');
-        if (selected) {
-          try {
-            const decoded = decodeURIComponent(selected);
-            selectedAthletes = JSON.parse(decoded);
-            renderSelectedAthletes();
-            renderRankingTable();
-          } catch (e) {
-            // Invalid JSON, ignore
-          }
+
+      // Load single athlete from URL (new format)
+      if (athleteBib) {
+        await loadResultCounts();
+        const athletes = await reconstructAthletesFromBibs(
+          currentRace === 'hm' ? [athleteBib] : [],
+          currentRace === 'tenk' ? [athleteBib] : []
+        );
+        if (athletes.length > 0) {
+          selectedAthlete = athletes[0];
+          renderTrophyCase();
+          updateCharts();
         }
       }
-      
+
+      // Load compare athletes from URL
+      const compareBibs = params.get('compare');
+      if (compareBibs) {
+        await loadResultCounts();
+        const bibs = compareBibs.split(',').filter(Boolean);
+        const athletes = await reconstructAthletesFromBibs(
+          currentRace === 'hm' ? bibs : [],
+          currentRace === 'tenk' ? bibs : []
+        );
+        comparedAthletes = athletes;
+        if (comparedAthletes.length > 0) {
+          compareMode = true;
+          document.getElementById('compare-mode-checkbox').checked = true;
+          document.body.classList.add('compare-mode');
+          renderComparePills();
+          renderComparisonTable();
+          updateCharts();
+        }
+      }
+
       if (query) {
         searchInput.value = query;
         searchQuery = query;
@@ -877,24 +2022,24 @@
       }
     }
 
-    // Update URL with current state
+    // Update URL with current state (compact format)
     function updateURLFunc() {
       const params = new URLSearchParams();
       if (currentEvent !== 'dcs') {
         params.set('event', currentEvent);
       }
-      if (currentRace) {
-        params.set('race', currentRace === 'hm' ? 'hm' : 'tenk');
+      if (currentRace !== 'hm') {
+        params.set('race', 'tenk');
       }
-      if (currentMode === 'multi') {
-        params.set('mode', 'multi');
-        if (selectedAthletes.length > 0) {
-          try {
-            const encoded = encodeURIComponent(JSON.stringify(selectedAthletes));
-            params.set('selected', encoded);
-          } catch (e) {
-            // Ignore encoding errors
-          }
+      // Single selected athlete
+      if (selectedAthlete && selectedAthlete.bibNumber) {
+        params.set('bib', selectedAthlete.bibNumber);
+      }
+      // Compared athletes
+      if (comparedAthletes.length > 0) {
+        const bibs = comparedAthletes.map(a => a.bibNumber).filter(Boolean);
+        if (bibs.length > 0) {
+          params.set('compare', bibs.join(','));
         }
       }
       if (searchQuery) {
@@ -904,13 +2049,38 @@
       window.history.replaceState({}, '', newURL);
     }
 
-    // Update download links with race filter
-    function updateDownloadLinks() {
-      const raceParam = currentRace === 'hm' ? 'half' : '10k';
-      const eventParam = currentEvent === 'dcs' ? '' : `&event=${currentEvent}`;
-      csvDownload.href = `/api/download/csv?race=${raceParam}${eventParam}`;
-      jsonDownload.href = `/api/download/json?race=${raceParam}${eventParam}`;
+    // Reconstruct athletes from bib numbers
+    async function reconstructAthletesFromBibs(hmBibs, tenkBibs) {
+      if (!cachedResults) {
+        await loadResultCounts();
+      }
+      if (!cachedResults) return [];
+
+      const athletes = [];
+
+      // Find half marathon athletes
+      if (hmBibs && hmBibs.length > 0) {
+        for (const bib of hmBibs) {
+          const found = cachedResults.categories.halfMarathon.find(a => a.bibNumber === bib);
+          if (found) {
+            athletes.push({ ...found, race: 'Half Marathon' });
+          }
+        }
+      }
+
+      // Find 10K athletes
+      if (tenkBibs && tenkBibs.length > 0) {
+        for (const bib of tenkBibs) {
+          const found = cachedResults.categories.tenKm.find(a => a.bibNumber === bib);
+          if (found) {
+            athletes.push({ ...found, race: '10km' });
+          }
+        }
+      }
+
+      return athletes;
     }
+
 
     function selectRace(race, updateURL = true) {
       currentRace = race;
@@ -931,16 +2101,15 @@
 
       // Update placeholder
       const raceName = race === 'hm' ? 'Half Marathon' : '10K';
-      searchInput.placeholder = `Search ${raceName} results...`;
+      searchInput.placeholder = `Search ${raceName} by name...`;
 
-      // Update download links
-      updateDownloadLinks();
-
-      // Re-render multi mode views if in multi mode
-      if (currentMode === 'multi') {
-        renderSelectedAthletes();
-        renderRankingTable();
-      }
+      // Clear selected athlete on race change (different race data)
+      selectedAthlete = null;
+      comparedAthletes = [];
+      renderTrophyCase();
+      renderComparePills();
+      renderComparisonTable();
+      updateCharts();
 
       // Re-run search if there's a query
       if (searchInput.value.trim()) {
@@ -951,49 +2120,6 @@
       }
     }
 
-    // Toggle between single and multi mode (global for onclick handlers)
-    window.toggleMode = function(mode, updateURL = true) {
-      currentMode = mode;
-      document.body.classList.toggle('multi-mode', mode === 'multi');
-      
-      // Update mode tab styles
-      document.querySelectorAll('.mode-tab').forEach(tab => {
-        tab.classList.remove('active');
-      });
-      document.querySelector(`.mode-tab[data-mode="${mode}"]`).classList.add('active');
-      
-      // Show/hide panels
-      const selectedPanel = document.getElementById('selected-panel');
-      const rankingBox = document.getElementById('ranking-box');
-      const resultsBox = document.querySelector('.results-box.single-mode-only');
-      const multiResultsBox = document.getElementById('multi-results-box');
-      
-      if (mode === 'multi') {
-        selectedPanel.classList.add('visible');
-        rankingBox.classList.add('visible');
-        resultsBox.style.display = 'none';
-        multiResultsBox.style.display = '';
-        renderSelectedAthletes();
-        renderRankingTable();
-        if (currentResults.length > 0) {
-          renderMultiModeResults();
-        } else {
-          showInitialState();
-        }
-      } else {
-        selectedPanel.classList.remove('visible');
-        rankingBox.classList.remove('visible');
-        resultsBox.style.display = '';
-        multiResultsBox.style.display = 'none';
-        if (currentResults.length > 0) {
-          renderResults();
-        } else {
-          showInitialState();
-        }
-      }
-      
-      if (updateURL) updateURLFunc();
-    };
 
     // Parse time string to seconds for sorting
     function parseTimeToSeconds(timeStr) {
@@ -1007,382 +2133,65 @@
       return Infinity;
     }
 
-    // Add athlete to selection
-    function addAthleteToSelection(athlete) {
-      // Check if already selected (by name and race)
-      const isSelected = selectedAthletes.some(a => 
-        a.name === athlete.name && a.race === athlete.race
-      );
-      
-      if (!isSelected) {
-        selectedAthletes.push({
-          name: athlete.name,
-          position: athlete.position,
-          finishTime: athlete.finishTime,
-          pace: athlete.pace,
-          bibNumber: athlete.bibNumber,
-          gender: athlete.gender,
-          category: athlete.category,
-          race: athlete.race,
-          country: athlete.country,
-          time5km: athlete.time5km,
-          time10km: athlete.time10km,
-          time13km: athlete.time13km,
-          time15km: athlete.time15km,
-          genderPosition: athlete.genderPosition,
-          categoryPosition: athlete.categoryPosition
-        });
-        renderSelectedAthletes();
-        renderRankingTable();
-        updateURLFunc();
-      }
-    }
-
-    // Remove athlete from selection (global for onclick handlers)
-    window.removeAthleteFromSelection = function(name, race) {
-      selectedAthletes = selectedAthletes.filter(a => 
-        !(a.name === name && a.race === race)
-      );
-      renderSelectedAthletes();
-      renderRankingTable();
-      renderMultiModeResults();
-      updateURLFunc();
-    };
-
-    // Clear all selected athletes (global for onclick handlers)
-    window.clearSelection = function() {
-      selectedAthletes = [];
-      renderSelectedAthletes();
-      renderRankingTable();
-      renderMultiModeResults();
-      updateURLFunc();
-    };
-
-
-    // Render selected athletes panel
-    function renderSelectedAthletes() {
-      const selectedList = document.getElementById('selected-list');
-      const selectedCount = document.getElementById('selected-count');
-      const raceName = currentRace === 'hm' ? 'Half Marathon' : '10km';
-      const filtered = selectedAthletes.filter(a => a.race === raceName);
-      
-      selectedCount.textContent = `${filtered.length} athlete${filtered.length !== 1 ? 's' : ''} selected`;
-      
-      if (filtered.length === 0) {
-        selectedList.innerHTML = '<div style="color: #888; font-size: 0.9rem;">No athletes selected. Search and click to add.</div>';
-      } else {
-        // Store filtered athletes temporarily for event handlers
-        window._currentFilteredAthletes = filtered;
-        
-        selectedList.innerHTML = filtered.map((athlete, index) => `
-          <div class="selected-item" data-athlete-index="${index}">
-            <span class="selected-item-name">${escapeHtml(athlete.name)}</span>
-            <button class="selected-item-remove" data-index="${index}" title="Remove">×</button>
-          </div>
-        `).join('');
-        
-        // Add click handlers for remove buttons
-        selectedList.querySelectorAll('.selected-item-remove').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const index = parseInt(btn.getAttribute('data-index'), 10);
-            if (window._currentFilteredAthletes && window._currentFilteredAthletes[index]) {
-              const athlete = window._currentFilteredAthletes[index];
-              removeAthleteFromSelection(athlete.name, athlete.race);
-            }
-          });
-        });
-      }
-    }
-
-    // Sort ranking table (global for onclick handlers)
-    window.sortRankingTable = function(column) {
-      if (rankingSort.column === column) {
-        rankingSort.direction = rankingSort.direction === 'asc' ? 'desc' : 'asc';
-      } else {
-        rankingSort.column = column;
-        rankingSort.direction = 'asc';
-      }
-      renderRankingTable();
-    };
-
-    // Render ranking table
-    function renderRankingTable() {
-      const rankingContainer = document.getElementById('ranking-container');
-      const rankingTitle = document.getElementById('ranking-title');
-      const raceName = currentRace === 'hm' ? 'Half Marathon' : '10km';
-      const filtered = selectedAthletes.filter(a => a.race === raceName);
-      
-      rankingTitle.textContent = `Ranking (${filtered.length} athlete${filtered.length !== 1 ? 's' : ''})`;
-      
-      if (filtered.length === 0) {
-        rankingContainer.innerHTML = `
-          <div class="no-results">
-            <div class="icon">👥</div>
-            <div>Select athletes to compare rankings</div>
-          </div>
-        `;
-        return;
-      }
-      
-      // Sort athletes
-      let sorted = [...filtered];
-      if (rankingSort.column) {
-        sorted.sort((a, b) => {
-          let aVal = a[rankingSort.column];
-          let bVal = b[rankingSort.column];
-          
-          // Handle numeric sorting for position
-          if (rankingSort.column === 'position' || rankingSort.column === 'genderPosition' || rankingSort.column === 'categoryPosition') {
-            aVal = parseInt(aVal) || 0;
-            bVal = parseInt(bVal) || 0;
-          } else if (rankingSort.column === 'finishTime' || rankingSort.column === 'time5km' || rankingSort.column === 'time10km' || rankingSort.column === 'time13km' || rankingSort.column === 'time15km') {
-            // Parse time strings for proper numeric sorting
-            aVal = parseTimeToSeconds(aVal);
-            bVal = parseTimeToSeconds(bVal);
-          } else if (rankingSort.column === 'pace') {
-            // Parse pace strings (extract minutes and seconds before /km)
-            const aPace = aVal ? aVal.replace('/km', '').split(':') : [];
-            const bPace = bVal ? bVal.replace('/km', '').split(':') : [];
-            if (aPace.length === 2 && bPace.length === 2) {
-              aVal = parseInt(aPace[0], 10) * 60 + parseInt(aPace[1], 10);
-              bVal = parseInt(bPace[0], 10) * 60 + parseInt(bPace[1], 10);
-            } else {
-              aVal = Infinity;
-              bVal = Infinity;
-            }
-          } else {
-            // Default: string comparison (for name, country, gender, category, bibNumber)
-            aVal = String(aVal || '').toLowerCase();
-            bVal = String(bVal || '').toLowerCase();
-          }
-          
-          if (aVal < bVal) return rankingSort.direction === 'asc' ? -1 : 1;
-          if (aVal > bVal) return rankingSort.direction === 'asc' ? 1 : -1;
-          return 0;
-        });
-      }
-      
-      let html = `
-        <table>
-          <thead>
-            <tr>
-              <th class="sortable ${rankingSort.column === 'position' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('position')">Pos</th>
-              <th class="sortable ${rankingSort.column === 'name' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('name')">Name</th>
-              <th class="sortable mobile-hide ${rankingSort.column === 'country' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('country')">Country</th>
-              <th class="sortable time-header ${rankingSort.column === 'finishTime' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('finishTime')">Time</th>
-              <th class="sortable mobile-hide time-header ${rankingSort.column === 'time5km' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('time5km')">5km</th>
-              <th class="sortable mobile-hide time-header ${rankingSort.column === 'time10km' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('time10km')">10km</th>
-              <th class="sortable mobile-hide time-header ${rankingSort.column === 'time13km' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('time13km')">13km</th>
-              <th class="sortable mobile-hide time-header ${rankingSort.column === 'time15km' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('time15km')">15km</th>
-              <th class="sortable pace-header ${rankingSort.column === 'pace' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('pace')">Pace</th>
-              <th class="sortable mobile-hide ${rankingSort.column === 'bibNumber' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('bibNumber')">Bib</th>
-              <th class="sortable mobile-hide ${rankingSort.column === 'gender' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('gender')">Gender</th>
-              <th class="sortable mobile-hide ${rankingSort.column === 'category' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('category')">Category</th>
-              <th class="sortable mobile-hide ${rankingSort.column === 'genderPosition' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('genderPosition')">G Pos</th>
-              <th class="sortable mobile-hide ${rankingSort.column === 'categoryPosition' ? (rankingSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortRankingTable('categoryPosition')">C Pos</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
-      
-      for (const athlete of sorted) {
-        html += `
-          <tr>
-            <td>${athlete.position}</td>
-            <td class="name-cell">${escapeHtml(athlete.name)}</td>
-            <td class="mobile-hide">${athlete.country || '-'}</td>
-            <td class="time-cell">${athlete.finishTime || '-'}</td>
-            <td class="mobile-hide time-cell">${athlete.time5km || '-'}</td>
-            <td class="mobile-hide time-cell">${athlete.time10km || '-'}</td>
-            <td class="mobile-hide time-cell">${athlete.time13km || '-'}</td>
-            <td class="mobile-hide time-cell">${athlete.time15km || '-'}</td>
-            <td class="pace-cell">${athlete.pace || '-'}</td>
-            <td class="mobile-hide">${athlete.bibNumber || '-'}</td>
-            <td class="mobile-hide">${athlete.gender || '-'}</td>
-            <td class="mobile-hide">${athlete.category || '-'}</td>
-            <td class="mobile-hide">${athlete.genderPosition !== undefined ? athlete.genderPosition : '-'}</td>
-            <td class="mobile-hide">${athlete.categoryPosition !== undefined ? athlete.categoryPosition : '-'}</td>
-          </tr>
-        `;
-      }
-      
-      html += '</tbody></table>';
-      rankingContainer.innerHTML = html;
-    }
-
-    // Render multi-mode search results
-    function renderMultiModeResults() {
-      if (currentMode !== 'multi') {
-        return;
-      }
-      
-      const multiResultsContainer = document.getElementById('multi-results-container');
-      const multiResultsCount = document.getElementById('multi-results-count');
-      const multiResultsHeader = document.getElementById('multi-results-header');
-      
-      // Update header style
-      multiResultsHeader.classList.remove('hm-active', 'tenk-active');
-      multiResultsHeader.classList.add(currentRace === 'hm' ? 'hm-active' : 'tenk-active');
-      
-      if (currentResults.length === 0) {
-        multiResultsContainer.innerHTML = `
-          <div class="no-results">
-            <div class="icon">🔍</div>
-            <div>Search for athletes to add to ranking</div>
-          </div>
-        `;
-        multiResultsCount.textContent = 'Search results';
-        return;
-      }
-      
-      const raceName = currentRace === 'hm' ? 'Half Marathon' : '10km';
-      const filtered = currentResults.filter(r => r.race === raceName);
-      
-      if (filtered.length === 0) {
-        multiResultsContainer.innerHTML = `
-          <div class="no-results">
-            <div class="icon">🔍</div>
-            <div>No ${raceName} matches found</div>
-          </div>
-        `;
-        multiResultsCount.textContent = '0 results';
-        return;
-      }
-      
-      multiResultsCount.textContent = `${filtered.length} result${filtered.length !== 1 ? 's' : ''}`;
-      
-      let html = '';
-      for (let i = 0; i < filtered.length; i++) {
-        const result = filtered[i];
-        const isSelected = selectedAthletes.some(a => 
-          a.name === result.name && a.race === result.race
-        );
-        
-        html += `
-          <div class="search-result-item" data-result-index="${i}">
-            <button class="search-result-add-btn" data-result-index="${i}" ${isSelected ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} title="${isSelected ? 'Already added' : 'Add to comparison'}">
-              ${isSelected ? '✓' : '+'}
-            </button>
-            <div class="search-result-item-content">
-              <div class="result-item-position">${result.position}</div>
-              <div class="result-item-bib">${result.bibNumber || '-'}</div>
-              <div class="result-item-name">${escapeHtml(result.name)}</div>
-              <div class="result-item-gender">${result.gender || '-'}</div>
-              <div class="result-item-category">${result.category || '-'}</div>
-              <div class="result-item-time">${result.finishTime || '-'}</div>
-            </div>
-          </div>
-        `;
-      }
-      
-      multiResultsContainer.innerHTML = html;
-      
-      // Add click handlers to the add buttons only
-      multiResultsContainer.querySelectorAll('.search-result-add-btn').forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const index = parseInt(btn.getAttribute('data-result-index') || '0', 10);
-          const result = filtered[index];
-          if (!selectedAthletes.some(a => a.name === result.name && a.race === result.race)) {
-            addAthleteToSelection(result);
-            // Clear search input and show ranking table
-            searchInput.value = '';
-            searchQuery = '';
-            showInitialState();
-          }
-        });
-      });
-    }
-
-    // Toggle athlete selection
-    function toggleAthleteSelection(athlete) {
-      const isSelected = selectedAthletes.some(a => 
-        a.name === athlete.name && a.race === athlete.race
-      );
-      
-      if (isSelected) {
-        removeAthleteFromSelection(athlete.name, athlete.race);
-      } else {
-        addAthleteToSelection(athlete);
-      }
-    }
 
     function showInitialState() {
       const raceName = currentRace === 'hm' ? 'Half Marathon' : '10K';
-      
-      if (currentMode === 'multi') {
-        const multiResultsContainer = document.getElementById('multi-results-container');
-        const multiResultsCount = document.getElementById('multi-results-count');
-        if (multiResultsContainer) {
-          multiResultsContainer.innerHTML = `
-            <div class="no-results">
-              <div class="icon">${currentRace === 'hm' ? '🏃' : '🏃‍♀️'}</div>
-              <div>Search and click to add ${raceName} athletes</div>
-            </div>
-          `;
-        }
-        if (multiResultsCount) {
-          multiResultsCount.textContent = 'Search results';
-        }
-      } else {
-        resultsContainer.innerHTML = `
-          <div class="no-results">
-            <div class="icon">${currentRace === 'hm' ? '🏃' : '🏃‍♀️'}</div>
-            <div>Search for a ${raceName} finisher</div>
-          </div>
-        `;
-        resultsCount.textContent = `${raceName} Results`;
-      }
+      resultsContainer.innerHTML = `
+        <div class="no-results">
+          <div class="icon">${currentRace === 'hm' ? '🏃' : '🏃‍♀️'}</div>
+          <div>Search for a ${raceName} finisher</div>
+        </div>
+      `;
+      resultsCount.textContent = `${raceName} Results`;
       currentResults = [];
     }
 
     // Show skeleton loader
     function showSkeletonLoader() {
-      let html = '<table><thead><tr><th>Pos</th><th>Bib</th><th>Name</th><th>Gender</th><th>Category</th><th>Time</th></tr></thead><tbody>';
-      for (let i = 0; i < 5; i++) {
-        html += '<tr class="skeleton"><td><div class="skeleton-line"></div></td><td><div class="skeleton-line"></div></td><td><div class="skeleton-line"></div></td><td><div class="skeleton-line"></div></td><td><div class="skeleton-line"></div></td><td><div class="skeleton-line"></div></td></tr>';
+      let html = '';
+      for (let i = 0; i < 6; i++) {
+        const delay = i * 0.1;
+        html += `
+          <div class="skeleton-row" style="animation-delay: ${delay}s">
+            <div class="skeleton-cell" style="width: 45px"></div>
+            <div class="skeleton-cell" style="width: 55px"></div>
+            <div class="skeleton-cell wide"></div>
+            <div class="skeleton-cell" style="width: 50px"></div>
+            <div class="skeleton-cell" style="width: 70px"></div>
+            <div class="skeleton-cell" style="width: 70px"></div>
+          </div>
+        `;
       }
-      html += '</tbody></table>';
       resultsContainer.innerHTML = html;
     }
 
-    // Fetch and display status
-    async function loadStatus() {
-      try {
-        const res = await fetch(`/api/status?event=${currentEvent}`);
-        const data = await res.json();
 
-        const statusClass = data.monitor.lastStatus === 'up' ? 'up' :
-                           data.monitor.lastStatus === 'down' ? 'down' : 'unknown';
+    async function loadResultCounts(forceRefresh = false) {
+      const cacheKey = `${currentEvent}_results`;
 
-        let statusHtml = `<span class="status-item"><span class="status-dot ${statusClass}"></span><strong>API:</strong> ${data.monitor.lastStatus.toUpperCase()}</span>`;
-
-        if (data.hasResults && data.scrapedAt) {
-          const date = new Date(data.scrapedAt);
-          statusHtml += `<span class="status-item"><strong>Updated:</strong> ${date.toLocaleString()}</span>`;
-        } else {
-          statusHtml += `<span class="status-item">Waiting for results...</span>`;
+      // Check cache first
+      if (!forceRefresh && resultsCache.has(cacheKey)) {
+        const cached = resultsCache.get(cacheKey);
+        if (Date.now() - cached.timestamp < CACHE_DURATION) {
+          cachedResults = cached.data;
+          const hmCount = cachedResults.categories.halfMarathon.length;
+          const tenkCount = cachedResults.categories.tenKm.length;
+          hmCountEl.textContent = `${hmCount} finishers`;
+          tenkCountEl.textContent = `${tenkCount} finishers`;
+          return;
         }
-
-        if (data.resultCount > 0) {
-          statusHtml += `<span class="status-item"><strong>Total Results:</strong> ${data.resultCount}</span>`;
-        }
-
-        statusBar.innerHTML = statusHtml;
-
-        // Also fetch full results to get counts
-        await loadResultCounts();
-      } catch (e) {
-        statusBar.innerHTML = '<span class="status-item">Unable to load status</span>';
       }
-    }
 
-    async function loadResultCounts() {
       try {
         const res = await fetch(`/api/results?event=${currentEvent}`);
         if (res.ok) {
           cachedResults = await res.json();
+          // Store in cache
+          resultsCache.set(cacheKey, {
+            data: cachedResults,
+            timestamp: Date.now(),
+            scrapedAt: cachedResults.scrapedAt
+          });
           const hmCount = cachedResults.categories.halfMarathon.length;
           const tenkCount = cachedResults.categories.tenKm.length;
           hmCountEl.textContent = `${hmCount} finishers`;
@@ -1393,83 +2202,74 @@
       }
     }
 
-    // Sort results (global for onclick handlers)
-    window.sortResults = function(column) {
-      if (currentSort.column === column) {
-        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-      } else {
-        currentSort.column = column;
-        currentSort.direction = 'asc';
-      }
-      renderResults();
-    };
-
-    // Render results table
+    // Render search results as clickable items
     function renderResults() {
-      if (currentMode === 'multi') {
-        renderMultiModeResults();
-        return;
-      }
-      
       if (currentResults.length === 0) {
         showInitialState();
         return;
       }
 
-      // Sort if needed
-      let sortedResults = [...currentResults];
-      if (currentSort.column) {
-        sortedResults.sort((a, b) => {
-          let aVal = a[currentSort.column];
-          let bVal = b[currentSort.column];
-          
-          // Handle numeric sorting for position
-          if (currentSort.column === 'position') {
-            aVal = parseInt(aVal) || 0;
-            bVal = parseInt(bVal) || 0;
-          } else {
-            aVal = String(aVal || '').toLowerCase();
-            bVal = String(bVal || '').toLowerCase();
-          }
-          
-          if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
-          if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
-          return 0;
-        });
-      }
+      const total = getTotalForRace();
+      resultsCount.textContent = `${currentResults.length} result${currentResults.length !== 1 ? 's' : ''}`;
 
-      resultsCount.textContent = `${sortedResults.length} result${sortedResults.length !== 1 ? 's' : ''}`;
+      let html = '';
+      for (let i = 0; i < currentResults.length; i++) {
+        const result = currentResults[i];
+        const isSelected = selectedAthlete && selectedAthlete.bibNumber === result.bibNumber;
+        const isCompared = comparedAthletes.some(a => a.bibNumber === result.bibNumber);
+        const positionHtml = getPositionBadgeHtml(result.position, total);
+        const paceClass = getPaceZoneClass(result.pace);
 
-      let html = `
-        <table>
-          <thead>
-            <tr>
-              <th class="sortable ${currentSort.column === 'position' ? (currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortResults('position')">Pos</th>
-              <th class="sortable ${currentSort.column === 'bibNumber' ? (currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortResults('bibNumber')">Bib</th>
-              <th class="sortable ${currentSort.column === 'name' ? (currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortResults('name')">Name</th>
-              <th class="sortable ${currentSort.column === 'gender' ? (currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortResults('gender')">Gender</th>
-              <th class="sortable ${currentSort.column === 'category' ? (currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortResults('category')">Category</th>
-              <th class="sortable ${currentSort.column === 'finishTime' ? (currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" onclick="sortResults('finishTime')">Time</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
-
-      for (const r of sortedResults) {
         html += `
-          <tr>
-            <td>${r.position}</td>
-            <td>${r.bibNumber || '-'}</td>
-            <td class="name-cell">${escapeHtml(r.name)} <span class="confidence">${r.confidence}%</span></td>
-            <td>${r.gender || '-'}</td>
-            <td>${r.category || '-'}</td>
-            <td>${r.finishTime || '-'}</td>
-          </tr>
+          <div class="search-result-item ${isSelected ? 'selected' : ''}" data-bib="${result.bibNumber}" data-result-index="${i}">
+            <div class="search-result-item-content">
+              <div class="result-item-position">${positionHtml}</div>
+              <div class="result-item-name">${escapeHtml(result.name)}</div>
+              <div class="result-item-time ${paceClass}">${result.finishTime || '-'}</div>
+            </div>
+            <button class="search-result-add-btn" data-result-index="${i}" ${isCompared ? 'disabled' : ''} title="${isCompared ? 'Already in comparison' : 'Add to comparison'}">
+              ${isCompared ? '✓' : '+'}
+            </button>
+          </div>
         `;
       }
 
-      html += '</tbody></table>';
+      // Add mobile cards view
+      let cardsHtml = '<div class="athlete-cards-container">';
+      for (let i = 0; i < currentResults.length; i++) {
+        const result = currentResults[i];
+        const isCompared = comparedAthletes.some(a => a.bibNumber === result.bibNumber);
+        cardsHtml += generateAthleteCardHtml(result, total, compareMode, isCompared);
+      }
+      cardsHtml += '</div>';
+      html += cardsHtml;
+
       resultsContainer.innerHTML = html;
+
+      // Add click handlers for selecting athletes
+      resultsContainer.querySelectorAll('.search-result-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+          // Don't trigger selection when clicking the add button
+          if (e.target.closest('.search-result-add-btn')) return;
+
+          const index = parseInt(item.getAttribute('data-result-index'), 10);
+          if (currentResults[index]) {
+            selectAthlete(currentResults[index]);
+          }
+        });
+      });
+
+      // Add click handlers for compare button
+      resultsContainer.querySelectorAll('.search-result-add-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const index = parseInt(btn.getAttribute('data-result-index'), 10);
+          if (currentResults[index] && !comparedAthletes.some(a => a.bibNumber === currentResults[index].bibNumber)) {
+            addToComparison(currentResults[index]);
+            renderResults(); // Re-render to update button states
+          }
+        });
+      });
     }
 
     // Perform search
@@ -1487,23 +2287,16 @@
       try {
         const raceFilter = currentRace === 'hm' ? 'Half Marathon' : '10km';
         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&race=${encodeURIComponent(raceFilter)}&event=${currentEvent}`);
-        
+
         if (!res.ok) {
           throw new Error(`HTTP error! status: ${res.status}`);
         }
-        
+
         const data = await res.json();
 
         if (data.error) {
           errorContainer.innerHTML = `<div class="error-msg">${data.error}</div>`;
-          if (currentMode === 'multi') {
-            const multiResultsContainer = document.getElementById('multi-results-container');
-            if (multiResultsContainer) {
-              multiResultsContainer.innerHTML = '<div class="no-results"><div class="icon">⏳</div><div>Results not yet available</div></div>';
-            }
-          } else {
-            resultsContainer.innerHTML = '<div class="no-results"><div class="icon">⏳</div><div>Results not yet available</div></div>';
-          }
+          resultsContainer.innerHTML = '<div class="no-results"><div class="icon">⏳</div><div>Results not yet available</div></div>';
           resultsCount.textContent = '0 results';
           currentResults = [];
           if (updateURL) updateURLFunc();
@@ -1537,34 +2330,20 @@
         }
 
         currentResults = filtered;
-        
-        if (currentMode === 'multi') {
-          renderMultiModeResults();
-        } else {
-          currentSort = { column: null, direction: 'asc' };
-          renderResults();
-          
-          // Show pagination info if limited (only in single mode)
-          if (data.hasMore || data.total >= data.limit) {
-            const paginationInfo = document.createElement('div');
-            paginationInfo.className = 'pagination-info';
-            paginationInfo.textContent = `Showing ${filtered.length} of ${data.total} result${data.total !== 1 ? 's' : ''}${data.hasMore ? ' (limited to 20)' : ''}`;
-            resultsContainer.appendChild(paginationInfo);
-          }
+        renderResults();
+
+        // Show pagination info if limited
+        if (data.hasMore || data.total >= data.limit) {
+          const paginationInfo = document.createElement('div');
+          paginationInfo.className = 'pagination-info';
+          paginationInfo.textContent = `Showing ${filtered.length} of ${data.total} result${data.total !== 1 ? 's' : ''}${data.hasMore ? ' (limited to 20)' : ''}`;
+          resultsContainer.appendChild(paginationInfo);
         }
 
         if (updateURL) updateURLFunc();
       } catch (e) {
         console.error('Search error:', e);
-        const errorMsg = e instanceof Error ? e.message : 'Unknown error';
-        if (currentMode === 'multi') {
-          const multiResultsContainer = document.getElementById('multi-results-container');
-          if (multiResultsContainer) {
-            multiResultsContainer.innerHTML = `<div class="no-results"><div class="icon">⚠️</div><div>Error searching. Please try again.</div></div>`;
-          }
-        } else {
-          resultsContainer.innerHTML = '<div class="no-results"><div class="icon">⚠️</div><div>Error searching. Please try again.</div></div>';
-        }
+        resultsContainer.innerHTML = '<div class="no-results"><div class="icon">⚠️</div><div>Error searching. Please try again.</div></div>';
         resultsCount.textContent = 'Error';
         currentResults = [];
       }
@@ -1602,11 +2381,6 @@
 
     // Initial load
     loadStateFromURL();
-    // loadStatus is called by selectEvent, but we call it here too for initial load
-    loadStatus();
-
-    // Refresh status periodically
-    setInterval(loadStatus, 60000);
   </script>
 </body>
 </html>
