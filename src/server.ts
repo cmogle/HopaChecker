@@ -73,14 +73,14 @@ app.get('/api/health', (_req, res) => {
     whatsappFrom: process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886',
   };
   const notifyWhatsapp = process.env.NOTIFY_WHATSAPP || '';
-  const isTwilioConfigured = twilioConfig.accountSid && twilioConfig.authToken;
+  const twilioConfigured = isTwilioConfigured(twilioConfig);
 
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    twilioConfigured: isTwilioConfigured,
+    twilioConfigured,
     notifyWhatsappSet: !!notifyWhatsapp,
-    readyForHeartbeat: isTwilioConfigured && !!notifyWhatsapp,
+    readyForHeartbeat: twilioConfigured && !!notifyWhatsapp,
   });
 });
 
