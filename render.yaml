@@ -2,7 +2,7 @@
 # https://render.com/docs/blueprint-spec
 
 services:
-  # Web service for search UI and API
+  # Web service for search UI, API, and monitoring
   - type: web
     name: hopachecker-web
     runtime: node
@@ -19,30 +19,10 @@ services:
         value: /data
       - key: PORT
         value: 3000
-
-  # Cron job for monitoring (runs every 5 minutes)
-  - type: cron
-    name: hopachecker-monitor
-    runtime: node
-    schedule: "*/5 * * * *"
-    buildCommand: npm install && npm run build
-    startCommand: node dist/index.js monitor --notify --auto-scrape
-    disk:
-      name: hopachecker-data
-      mountPath: /data
-      sizeGB: 1
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATA_PATH
-        value: /data
-      - key: APP_URL
-        fromService:
-          type: web
-          name: hopachecker-web
-          property: host
       - key: TARGET_URL
         sync: false
+      - key: MONITOR_SECRET
+        generateValue: true
       - key: TWILIO_ACCOUNT_SID
         sync: false
       - key: TWILIO_AUTH_TOKEN
@@ -51,3 +31,22 @@ services:
         sync: false
       - key: NOTIFY_WHATSAPP
         sync: false
+
+  # Cron job that triggers the monitor endpoint every 5 minutes
+  - type: cron
+    name: hopachecker-cron
+    runtime: node
+    schedule: "*/5 * * * *"
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -X POST "https://hopachecker-web.onrender.com/api/monitor?key=$MONITOR_SECRET" \
+        -H "Content-Type: application/json" \
+        --max-time 120 \
+        --retry 2 \
+        || echo "Monitor request failed"
+    envVars:
+      - key: MONITOR_SECRET
+        fromService:
+          type: web
+          name: hopachecker-web
+          envVarKey: MONITOR_SECRET
