@@ -26,6 +26,19 @@ export function startMonitoringScheduler(): void {
     console.log('[Scheduler] Refreshing endpoint list...');
     loadAndScheduleEndpoints();
   });
+
+  // Check watchlist notifications every 15 minutes
+  cron.schedule('*/15 * * * *', async () => {
+    console.log('[Scheduler] Checking watchlist notifications...');
+    try {
+      const { checkWatchlistNotifications } = await import('../notifications/watchlist-notifications.js');
+      const result = await checkWatchlistNotifications();
+      console.log(`[Scheduler] Checked ${result.checked} watchlists, sent ${result.notificationsSent} notifications`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[Scheduler] Error checking watchlist notifications: ${errorMessage}`);
+    }
+  });
 }
 
 /**

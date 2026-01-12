@@ -1440,6 +1440,267 @@ body {
   margin-top: var(--spacing-xs);
 }
 
+/* ============================================
+   Claim Profile Styles
+   ============================================ */
+.btn-claim {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--gold-primary);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 4px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.btn-claim:hover {
+  background: var(--gold-secondary);
+  box-shadow: var(--shadow-gold);
+}
+
+.claim-badge {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: 4px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.claim-badge.verified {
+  background: rgba(76, 175, 80, 0.2);
+  color: #81c784;
+}
+
+.search-result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm);
+  border-radius: 8px;
+  transition: background var(--transition-base);
+}
+
+.search-result-item:hover {
+  background: var(--bg-card-hover);
+}
+
+.result-content {
+  flex: 1;
+}
+
+.result-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  align-items: center;
+}
+
+.claim-section {
+  margin: var(--spacing-md) 0;
+  padding: var(--spacing-md);
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.claim-section h3 {
+  margin-bottom: var(--spacing-sm);
+  color: var(--text-primary);
+}
+
+.claim-section p {
+  margin-bottom: var(--spacing-md);
+  color: var(--text-secondary);
+}
+
+.btn-strava {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: #fc4c02;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.btn-strava:hover {
+  background: #e64500;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(252, 76, 2, 0.3);
+}
+
+.claim-success,
+.claim-pending {
+  text-align: center;
+  padding: var(--spacing-md);
+}
+
+.claim-success svg,
+.claim-pending svg {
+  margin: 0 auto var(--spacing-md);
+  color: var(--gold-primary);
+}
+
+.claim-success h3 {
+  color: var(--gold-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.claim-pending h3 {
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.claim-error {
+  padding: var(--spacing-sm);
+  background: rgba(244, 67, 54, 0.1);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  border-radius: 4px;
+  color: #ef5350;
+  margin-top: var(--spacing-sm);
+}
+
+.claim-status {
+  text-align: center;
+  padding: var(--spacing-md);
+  color: var(--text-secondary);
+}
+
+/* ============================================
+   Watchlist Styles
+   ============================================ */
+.watchlist-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.btn-watchlist {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--gold-primary);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 6px;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.btn-watchlist:hover {
+  background: var(--gold-secondary);
+  box-shadow: var(--shadow-gold);
+}
+
+.watchlist-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: var(--spacing-xs);
+  min-width: 250px;
+  max-width: 350px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-modal);
+}
+
+.watchlist-menu-header {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.watchlist-menu-item {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+  transition: background var(--transition-base);
+}
+
+.watchlist-menu-item:hover {
+  background: var(--bg-card-hover);
+}
+
+.watchlist-menu-item label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  width: 100%;
+}
+
+.watchlist-menu-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.watchlist-menu-item span {
+  flex: 1;
+  color: var(--text-primary);
+}
+
+.watchlist-menu-item small {
+  display: block;
+  margin-top: var(--spacing-xs);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.watchlist-menu-footer {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+}
+
+.btn-create-watchlist,
+.btn-create-watchlist-small {
+  width: 100%;
+  padding: var(--spacing-sm);
+  background: transparent;
+  color: var(--gold-primary);
+  border: 1px solid var(--gold-primary);
+  border-radius: 4px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.btn-create-watchlist:hover,
+.btn-create-watchlist-small:hover {
+  background: var(--gold-primary);
+  color: var(--bg-primary);
+}
+
+.btn-create-watchlist-small {
+  font-size: var(--font-size-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+}
+
+.watchlist-menu-empty,
+.watchlist-menu-loading,
+.watchlist-menu-error {
+  padding: var(--spacing-md);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.watchlist-menu-error {
+  color: #ef5350;
+}
+
 /* Duplicate Modal */
 .duplicate-warning {
   padding: var(--spacing-md);

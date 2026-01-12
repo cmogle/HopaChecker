@@ -49,9 +49,31 @@ function handleAuthStateChange(event, session) {
     currentUser = session.user;
     updateAuthUI(session.user);
     closeAuthModal();
+    
+    // Check if user was trying to access admin page
+    const pendingAdminAccess = sessionStorage.getItem('pendingAdminAccess');
+    const hash = window.location.hash;
+    const path = window.location.pathname;
+    const normalizedPath = path.replace(/\/$/, '') || '/';
+    
+    // If user was trying to access /admin, redirect there
+    if (pendingAdminAccess === 'true' || hash === '#/admin' || normalizedPath === '/admin') {
+      sessionStorage.removeItem('pendingAdminAccess');
+      // Small delay to ensure UI is updated
+      setTimeout(() => {
+        if (window.showAdminPage) {
+          window.showAdminPage();
+        } else {
+          window.location.hash = '#/admin';
+          // Force a route update
+          window.dispatchEvent(new HashChangeEvent('hashchange'));
+        }
+      }, 200);
+    }
   } else if (event === 'SIGNED_OUT') {
     currentUser = null;
     updateAuthUI(null);
+    sessionStorage.removeItem('pendingAdminAccess');
   }
 }
 
@@ -156,17 +178,27 @@ export async function signInWithProvider(provider) {
   }
 
   try {
-    // Use current origin for redirect, ensuring we return to the same page
-    const redirectTo = window.location.origin + window.location.pathname;
+    // Determine where to redirect after OAuth
+    // Preserve the current path and hash (e.g., /admin or #/admin)
+    let redirectTo = window.location.origin;
+    
+    // If we're on /admin path, redirect back to /admin
+    if (window.location.pathname === '/admin' || window.location.pathname.endsWith('/admin')) {
+      redirectTo = window.location.origin + '/admin';
+    } else if (window.location.hash === '#/admin') {
+      // If using hash routing, redirect to origin and let hash routing handle it
+      redirectTo = window.location.origin;
+    } else {
+      // Otherwise, redirect to current pathname
+      redirectTo = window.location.origin + window.location.pathname;
+    }
+    
+    console.log('OAuth redirectTo:', redirectTo);
     
     const { data, error } = await supabaseClient.auth.signInWithOAuth({
       provider: provider,
       options: {
-        redirectTo: redirectTo,
-        queryParams: {
-          // Preserve hash if present (e.g., #/admin)
-          ...(window.location.hash ? { hash: window.location.hash } : {})
-        }
+        redirectTo: redirectTo
       }
     });
 

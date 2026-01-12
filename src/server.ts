@@ -784,7 +784,52 @@ app.get('/api/athletes/:id', async (req, res) => {
 app.get('/api/athletes/:id/results', async (req, res) => {
   try {
     const { getAthleteResults } = await import('./storage/supabase.js');
-    const results = await getAthleteResults(req.params.id);
+    const { supabase } = await import('./db/supabase.js');
+    const athleteId = req.params.id;
+    const includeHidden = req.query.include_hidden === 'true';
+    const userId = req.query.user_id as string;
+
+    let results = await getAthleteResults(athleteId);
+
+    // Exclude hidden results unless user has verified claim and explicitly requests them
+    if (!includeHidden) {
+      const { data: hiddenResults } = await supabase
+        .from('hidden_results')
+        .select('result_id')
+        .eq('athlete_id', athleteId);
+
+      if (hiddenResults && hiddenResults.length > 0) {
+        const hiddenIds = new Set(hiddenResults.map((h: any) => h.result_id));
+        results = results.filter((r) => !hiddenIds.has(r.id));
+      }
+    }
+
+    // If user has verified claim, mark which results are hidden
+    if (userId) {
+      const { data: claim } = await supabase
+        .from('profile_claims')
+        .select('*')
+        .eq('athlete_id', athleteId)
+        .eq('user_id', userId)
+        .eq('verification_status', 'verified')
+        .single();
+
+      if (claim) {
+        const { data: hiddenResults } = await supabase
+          .from('hidden_results')
+          .select('result_id')
+          .eq('athlete_id', athleteId);
+
+        if (hiddenResults) {
+          const hiddenIds = new Set(hiddenResults.map((h: any) => h.result_id));
+          results = results.map((r) => ({
+            ...r,
+            hidden: hiddenIds.has(r.id),
+          }));
+        }
+      }
+    }
+
     return res.json({ results });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -792,7 +837,7 @@ app.get('/api/athletes/:id/results', async (req, res) => {
   }
 });
 
-// Athlete: Claim results
+// Athlete: Claim results (legacy endpoint - kept for backward compatibility)
 app.post('/api/athletes/claim', async (req, res) => {
   try {
     const { linkResultToAthlete, getAthleteByUserId } = await import('./storage/supabase.js');
@@ -819,6 +864,468 @@ app.post('/api/athletes/claim', async (req, res) => {
 
     await linkResultToAthlete(resultId, finalAthleteId);
     return res.json({ success: true, athleteId: finalAthleteId });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// ============================================================================
+// PROFILE CLAIM API ENDPOINTS
+// ============================================================================
+
+// Strava OAuth: Get authorization URL
+app.get('/api/auth/strava/authorize', async (req, res) => {
+  try {
+    const { getStravaAuthUrl } = await import('./auth/strava.js');
+    const redirectUri = req.query.redirect_uri as string || `${req.protocol}://${req.get('host')}/api/auth/strava/callback`;
+    const athleteId = req.query.athlete_id as string;
+    
+    if (!athleteId) {
+      return res.status(400).json({ error: 'athlete_id is required' });
+    }
+
+    // Store athlete_id in session or state parameter for callback
+    const state = Buffer.from(JSON.stringify({ athleteId, redirectUri })).toString('base64');
+    const authUrl = getStravaAuthUrl(redirectUri);
+    
+    // Add state parameter to track athlete_id
+    const urlWithState = `${authUrl}&state=${encodeURIComponent(state)}`;
+    
+    return res.json({ authUrl: urlWithState });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Strava OAuth: Handle callback
+app.get('/api/auth/strava/callback', async (req, res) => {
+  try {
+    const { exchangeStravaCode, storeStravaLink, verifyAthleteWithStrava, getStravaAthlete } = await import('./auth/strava.js');
+    const { supabase } = await import('./db/supabase.js');
+    
+    const code = req.query.code as string;
+    const state = req.query.state as string;
+    const error = req.query.error as string;
+
+    if (error) {
+      return res.redirect(`/?error=${encodeURIComponent(error)}`);
+    }
+
+    if (!code || !state) {
+      return res.redirect('/?error=missing_code_or_state');
+    }
+
+    // Decode state to get athlete_id
+    let stateData: { athleteId: string; redirectUri: string };
+    try {
+      stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+    } catch {
+      return res.redirect('/?error=invalid_state');
+    }
+
+    const { athleteId, redirectUri } = stateData;
+    const redirectUrl = redirectUri || `${req.protocol}://${req.get('host')}/api/auth/strava/callback`;
+
+    // Exchange code for token
+    const tokenData = await exchangeStravaCode(code, redirectUrl);
+
+    // Get current user from session or require userId in state
+    const userId = req.query.user_id as string;
+    if (!userId) {
+      return res.redirect(`/?error=user_id_required&athlete_id=${athleteId}`);
+    }
+
+    // Store Strava link
+    await storeStravaLink(
+      athleteId,
+      userId,
+      tokenData.athlete.id.toString(),
+      tokenData.access_token,
+      tokenData.refresh_token,
+      tokenData.expires_at
+    );
+
+    // Verify athlete identity
+    const verification = await verifyAthleteWithStrava(
+      athleteId,
+      userId,
+      tokenData.athlete,
+      tokenData.access_token
+    );
+
+    // Create or update profile claim
+    const { data: existingClaim } = await supabase
+      .from('profile_claims')
+      .select('id')
+      .eq('athlete_id', athleteId)
+      .eq('user_id', userId)
+      .single();
+
+    const claimData: any = {
+      athlete_id: athleteId,
+      user_id: userId,
+      verification_method: 'strava',
+      verification_status: verification.verified ? 'verified' : 'pending',
+      strava_athlete_id: tokenData.athlete.id.toString(),
+    };
+
+    if (verification.verified) {
+      claimData.verified_at = new Date().toISOString();
+    }
+
+    if (existingClaim) {
+      await supabase
+        .from('profile_claims')
+        .update(claimData)
+        .eq('id', (existingClaim as any).id);
+    } else {
+      await supabase
+        .from('profile_claims')
+        .insert(claimData);
+    }
+
+    // Redirect to frontend with success/verification status
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    return res.redirect(
+      `${frontendUrl}/#/athlete/${athleteId}?strava_verified=${verification.verified}&confidence=${verification.confidence}`
+    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Strava callback error:', error);
+    return res.redirect(`/?error=${encodeURIComponent(errorMessage)}`);
+  }
+});
+
+// Profile Claim: Initiate claim
+app.post('/api/athletes/:id/claim', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const { getAthleteById } = await import('./storage/supabase.js');
+    const athleteId = req.params.id;
+    const { userId, verificationMethod } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const athlete = await getAthleteById(athleteId);
+    if (!athlete) {
+      return res.status(404).json({ error: 'Athlete not found' });
+    }
+
+    // Check if claim already exists
+    const { data: existingClaim } = await supabase
+      .from('profile_claims')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .eq('user_id', userId)
+      .single();
+
+    if (existingClaim) {
+      return res.json({
+        success: true,
+        claim: existingClaim,
+        message: 'Claim already exists',
+      });
+    }
+
+    // Create new claim
+    const { data: claim, error } = await supabase
+      .from('profile_claims')
+      .insert({
+        athlete_id: athleteId,
+        user_id: userId,
+        verification_method: verificationMethod || 'strava',
+        verification_status: 'pending',
+      } as any)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create claim: ${error.message}`);
+    }
+
+    return res.json({
+      success: true,
+      claim,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Profile Claim: Verify with Strava (complete verification after OAuth)
+app.post('/api/athletes/:id/verify-strava', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const { getStravaLink, verifyAthleteWithStrava, getStravaAthlete } = await import('./auth/strava.js');
+    const athleteId = req.params.id;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Get Strava link
+    const stravaLink = await getStravaLink(athleteId);
+    if (!stravaLink) {
+      return res.status(404).json({ error: 'Strava account not linked. Please complete OAuth flow first.' });
+    }
+
+    // Get Strava athlete profile
+    const stravaAthlete = await getStravaAthlete(stravaLink.accessToken);
+
+    // Verify athlete identity
+    const verification = await verifyAthleteWithStrava(
+      athleteId,
+      userId,
+      stravaAthlete,
+      stravaLink.accessToken
+    );
+
+    // Update claim status
+    const { data: claim, error } = await supabase
+      .from('profile_claims')
+      .update({
+        verification_status: verification.verified ? 'verified' : 'pending',
+        verified_at: verification.verified ? new Date().toISOString() : null,
+        strava_athlete_id: stravaAthlete.id.toString(),
+      } as any)
+      .eq('athlete_id', athleteId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update claim: ${error.message}`);
+    }
+
+    return res.json({
+      success: true,
+      verified: verification.verified,
+      confidence: verification.confidence,
+      reason: verification.reason,
+      claim,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Profile Claim: Get claim status
+app.get('/api/athletes/:id/claim-status', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const athleteId = req.params.id;
+    const userId = req.query.user_id as string;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
+    const { data: claim, error } = await supabase
+      .from('profile_claims')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.json({ claimed: false, claim: null });
+      }
+      throw new Error(`Failed to get claim: ${error.message}`);
+    }
+
+    return res.json({
+      claimed: true,
+      claim,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Profile Claim: Merge duplicate profiles
+app.post('/api/athletes/merge', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const { linkResultToAthlete, getAthleteResults } = await import('./storage/supabase.js');
+    const { primaryAthleteId, mergedAthleteId, userId } = req.body;
+
+    if (!primaryAthleteId || !mergedAthleteId || !userId) {
+      return res.status(400).json({ error: 'primaryAthleteId, mergedAthleteId, and userId are required' });
+    }
+
+    if (primaryAthleteId === mergedAthleteId) {
+      return res.status(400).json({ error: 'Cannot merge athlete with itself' });
+    }
+
+    // Verify user has claimed the primary athlete
+    const { data: claim } = await supabase
+      .from('profile_claims')
+      .select('*')
+      .eq('athlete_id', primaryAthleteId)
+      .eq('user_id', userId)
+      .eq('verification_status', 'verified')
+      .single();
+
+    if (!claim) {
+      return res.status(403).json({ error: 'You must have a verified claim on the primary athlete to merge profiles' });
+    }
+
+    // Check if merge already exists
+    const { data: existingMerge } = await supabase
+      .from('athlete_merges')
+      .select('id')
+      .eq('primary_athlete_id', primaryAthleteId)
+      .eq('merged_athlete_id', mergedAthleteId)
+      .single();
+
+    if (existingMerge) {
+      return res.json({ success: true, message: 'Merge already exists', merge: existingMerge });
+    }
+
+    // Create merge record
+    const { data: merge, error: mergeError } = await supabase
+      .from('athlete_merges')
+      .insert({
+        primary_athlete_id: primaryAthleteId,
+        merged_athlete_id: mergedAthleteId,
+        merged_by: userId,
+      } as any)
+      .select()
+      .single();
+
+    if (mergeError) {
+      throw new Error(`Failed to create merge: ${mergeError.message}`);
+    }
+
+    // Move all results from merged athlete to primary athlete
+    const mergedResults = await getAthleteResults(mergedAthleteId);
+    let movedCount = 0;
+
+    for (const result of mergedResults) {
+      try {
+        await linkResultToAthlete(result.id, primaryAthleteId);
+        movedCount++;
+      } catch (error) {
+        console.warn(`Failed to move result ${result.id}:`, error);
+      }
+    }
+
+    return res.json({
+      success: true,
+      merge,
+      resultsMoved: movedCount,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Result Hiding: Hide a result
+app.post('/api/athletes/:id/results/:resultId/hide', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const athleteId = req.params.id;
+    const resultId = req.params.resultId;
+    const { userId, reason } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Verify user has claimed and verified the profile
+    const { data: claim } = await supabase
+      .from('profile_claims')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .eq('user_id', userId)
+      .eq('verification_status', 'verified')
+      .single();
+
+    if (!claim) {
+      return res.status(403).json({ error: 'You must have a verified claim on this profile to hide results' });
+    }
+
+    // Check if already hidden
+    const { data: existing } = await supabase
+      .from('hidden_results')
+      .select('id')
+      .eq('athlete_id', athleteId)
+      .eq('result_id', resultId)
+      .single();
+
+    if (existing) {
+      return res.json({ success: true, message: 'Result already hidden', hidden: existing });
+    }
+
+    // Hide the result
+    const { data: hidden, error } = await supabase
+      .from('hidden_results')
+      .insert({
+        athlete_id: athleteId,
+        result_id: resultId,
+        reason: reason || null,
+      } as any)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to hide result: ${error.message}`);
+    }
+
+    return res.json({ success: true, hidden });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Result Hiding: Unhide a result
+app.delete('/api/athletes/:id/results/:resultId/hide', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const athleteId = req.params.id;
+    const resultId = req.params.resultId;
+    const userId = req.body.userId || req.query.user_id as string;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Verify user has claimed and verified the profile
+    const { data: claim } = await supabase
+      .from('profile_claims')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .eq('user_id', userId)
+      .eq('verification_status', 'verified')
+      .single();
+
+    if (!claim) {
+      return res.status(403).json({ error: 'You must have a verified claim on this profile to unhide results' });
+    }
+
+    // Unhide the result
+    const { error } = await supabase
+      .from('hidden_results')
+      .delete()
+      .eq('athlete_id', athleteId)
+      .eq('result_id', resultId);
+
+    if (error) {
+      throw new Error(`Failed to unhide result: ${error.message}`);
+    }
+
+    return res.json({ success: true });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return res.status(500).json({ error: errorMessage });
@@ -929,6 +1436,432 @@ app.get('/api/athletes/:id/following', async (req, res) => {
     const { getFollowing } = await import('./social/following.js');
     const following = await getFollowing(req.params.id);
     return res.json({ following });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// ============================================================================
+// WATCHLISTS API ENDPOINTS
+// ============================================================================
+
+// Watchlists: Get all watchlists for athlete
+app.get('/api/athletes/:id/watchlists', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const { getAthleteByUserId } = await import('./storage/supabase.js');
+    const athleteId = req.params.id;
+    const userId = req.query.user_id as string;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
+    // Verify user owns the athlete profile
+    const athlete = await getAthleteByUserId(userId);
+    if (!athlete || athlete.id !== athleteId) {
+      return res.status(403).json({ error: 'You can only view your own watchlists' });
+    }
+
+    const { data: watchlists, error } = await supabase
+      .from('watchlists')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to get watchlists: ${error.message}`);
+    }
+
+    // Get items for each watchlist
+    const watchlistsWithItems = await Promise.all(
+      (watchlists || []).map(async (watchlist: any) => {
+        const { data: items } = await supabase
+          .from('watchlist_items')
+          .select('watched_athlete_id')
+          .eq('watchlist_id', watchlist.id);
+
+        return {
+          ...watchlist,
+          itemCount: items?.length || 0,
+        };
+      })
+    );
+
+    return res.json({ watchlists: watchlistsWithItems });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Watchlists: Create watchlist
+app.post('/api/athletes/:id/watchlists', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const { getAthleteByUserId } = await import('./storage/supabase.js');
+    const athleteId = req.params.id;
+    const { userId, name, description } = req.body;
+
+    if (!userId || !name) {
+      return res.status(400).json({ error: 'userId and name are required' });
+    }
+
+    // Verify user owns the athlete profile
+    const athlete = await getAthleteByUserId(userId);
+    if (!athlete || athlete.id !== athleteId) {
+      return res.status(403).json({ error: 'You can only create watchlists for your own profile' });
+    }
+
+    const { data: watchlist, error } = await supabase
+      .from('watchlists')
+      .insert({
+        athlete_id: athleteId,
+        name,
+        description: description || null,
+      } as any)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return res.status(409).json({ error: 'Watchlist with this name already exists' });
+      }
+      throw new Error(`Failed to create watchlist: ${error.message}`);
+    }
+
+    return res.json({ watchlist });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Watchlists: Update watchlist
+app.put('/api/watchlists/:id', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const { getAthleteByUserId } = await import('./storage/supabase.js');
+    const watchlistId = req.params.id;
+    const { userId, name, description } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Get watchlist and verify ownership
+    const { data: watchlist } = await supabase
+      .from('watchlists')
+      .select('athlete_id')
+      .eq('id', watchlistId)
+      .single();
+
+    if (!watchlist) {
+      return res.status(404).json({ error: 'Watchlist not found' });
+    }
+
+    const athlete = await getAthleteByUserId(userId);
+    if (!athlete || athlete.id !== (watchlist as any).athlete_id) {
+      return res.status(403).json({ error: 'You can only update your own watchlists' });
+    }
+
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+
+    const { data: updated, error } = await supabase
+      .from('watchlists')
+      .update(updateData)
+      .eq('id', watchlistId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update watchlist: ${error.message}`);
+    }
+
+    return res.json({ watchlist: updated });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Watchlists: Delete watchlist
+app.delete('/api/watchlists/:id', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const { getAthleteByUserId } = await import('./storage/supabase.js');
+    const watchlistId = req.params.id;
+    const userId = req.body.userId || req.query.user_id as string;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Get watchlist and verify ownership
+    const { data: watchlist } = await supabase
+      .from('watchlists')
+      .select('athlete_id')
+      .eq('id', watchlistId)
+      .single();
+
+    if (!watchlist) {
+      return res.status(404).json({ error: 'Watchlist not found' });
+    }
+
+    const athlete = await getAthleteByUserId(userId);
+    if (!athlete || athlete.id !== (watchlist as any).athlete_id) {
+      return res.status(403).json({ error: 'You can only delete your own watchlists' });
+    }
+
+    const { error } = await supabase
+      .from('watchlists')
+      .delete()
+      .eq('id', watchlistId);
+
+    if (error) {
+      throw new Error(`Failed to delete watchlist: ${error.message}`);
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Watchlists: Add athlete to watchlist
+app.post('/api/watchlists/:id/athletes/:athleteId', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const { getAthleteByUserId } = await import('./storage/supabase.js');
+    const watchlistId = req.params.id;
+    const watchedAthleteId = req.params.athleteId;
+    const userId = req.body.userId;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Get watchlist and verify ownership
+    const { data: watchlist } = await supabase
+      .from('watchlists')
+      .select('athlete_id')
+      .eq('id', watchlistId)
+      .single();
+
+    if (!watchlist) {
+      return res.status(404).json({ error: 'Watchlist not found' });
+    }
+
+    const athlete = await getAthleteByUserId(userId);
+    if (!athlete || athlete.id !== (watchlist as any).athlete_id) {
+      return res.status(403).json({ error: 'You can only add athletes to your own watchlists' });
+    }
+
+    const { data: item, error } = await supabase
+      .from('watchlist_items')
+      .insert({
+        watchlist_id: watchlistId,
+        watched_athlete_id: watchedAthleteId,
+      } as any)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return res.status(409).json({ error: 'Athlete already in watchlist' });
+      }
+      throw new Error(`Failed to add athlete to watchlist: ${error.message}`);
+    }
+
+    return res.json({ item });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Watchlists: Remove athlete from watchlist
+app.delete('/api/watchlists/:id/athletes/:athleteId', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const { getAthleteByUserId } = await import('./storage/supabase.js');
+    const watchlistId = req.params.id;
+    const watchedAthleteId = req.params.athleteId;
+    const userId = req.body.userId || req.query.user_id as string;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Get watchlist and verify ownership
+    const { data: watchlist } = await supabase
+      .from('watchlists')
+      .select('athlete_id')
+      .eq('id', watchlistId)
+      .single();
+
+    if (!watchlist) {
+      return res.status(404).json({ error: 'Watchlist not found' });
+    }
+
+    const athlete = await getAthleteByUserId(userId);
+    if (!athlete || athlete.id !== (watchlist as any).athlete_id) {
+      return res.status(403).json({ error: 'You can only remove athletes from your own watchlists' });
+    }
+
+    const { error } = await supabase
+      .from('watchlist_items')
+      .delete()
+      .eq('watchlist_id', watchlistId)
+      .eq('watched_athlete_id', watchedAthleteId);
+
+    if (error) {
+      throw new Error(`Failed to remove athlete from watchlist: ${error.message}`);
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Watchlists: Get watchlist items (athletes being watched)
+app.get('/api/watchlists/:id/athletes', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const watchlistId = req.params.id;
+
+    const { data: items, error } = await supabase
+      .from('watchlist_items')
+      .select(`
+        id,
+        watched_athlete_id,
+        created_at,
+        athletes:watched_athlete_id (
+          id,
+          name,
+          gender,
+          country
+        )
+      `)
+      .eq('watchlist_id', watchlistId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to get watchlist items: ${error.message}`);
+    }
+
+    return res.json({ items: items || [] });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Watchlists: Get notification settings
+app.get('/api/watchlists/:id/notifications', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const watchlistId = req.params.id;
+
+    const { data: notifications, error } = await supabase
+      .from('watchlist_notifications')
+      .select(`
+        *,
+        watchlist_items!inner (
+          watchlist_id
+        )
+      `)
+      .eq('watchlist_items.watchlist_id', watchlistId);
+
+    if (error) {
+      throw new Error(`Failed to get notifications: ${error.message}`);
+    }
+
+    return res.json({ notifications: notifications || [] });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Watchlists: Configure notifications
+app.post('/api/watchlists/:id/notifications', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const { getAthleteByUserId } = await import('./storage/supabase.js');
+    const watchlistId = req.params.id;
+    const { userId, watchlistItemId, notificationType, thresholdValue, enabled } = req.body;
+
+    if (!userId || !watchlistItemId || !notificationType) {
+      return res.status(400).json({ error: 'userId, watchlistItemId, and notificationType are required' });
+    }
+
+    // Get watchlist and verify ownership
+    const { data: watchlist } = await supabase
+      .from('watchlists')
+      .select('athlete_id')
+      .eq('id', watchlistId)
+      .single();
+
+    if (!watchlist) {
+      return res.status(404).json({ error: 'Watchlist not found' });
+    }
+
+    const athlete = await getAthleteByUserId(userId);
+    if (!athlete || athlete.id !== (watchlist as any).athlete_id) {
+      return res.status(403).json({ error: 'You can only configure notifications for your own watchlists' });
+    }
+
+    // Check if notification already exists
+    const { data: existing } = await supabase
+      .from('watchlist_notifications')
+      .select('id')
+      .eq('watchlist_item_id', watchlistItemId)
+      .eq('notification_type', notificationType)
+      .single();
+
+    const notificationData: any = {
+      watchlist_item_id: watchlistItemId,
+      notification_type: notificationType,
+      threshold_value: thresholdValue || null,
+      enabled: enabled !== undefined ? enabled : true,
+    };
+
+    let notification;
+    if (existing) {
+      // Update existing
+      const { data: updated, error: updateError } = await supabase
+        .from('watchlist_notifications')
+        .update(notificationData)
+        .eq('id', (existing as any).id)
+        .select()
+        .single();
+
+      if (updateError) {
+        throw new Error(`Failed to update notification: ${updateError.message}`);
+      }
+      notification = updated;
+    } else {
+      // Create new
+      const { data: created, error: createError } = await supabase
+        .from('watchlist_notifications')
+        .insert(notificationData)
+        .select()
+        .single();
+
+      if (createError) {
+        throw new Error(`Failed to create notification: ${createError.message}`);
+      }
+      notification = created;
+    }
+
+    return res.json({ notification });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return res.status(500).json({ error: errorMessage });

@@ -134,14 +134,31 @@ function displaySearchResults(athletes) {
     const country = athlete.country || 'Unknown';
     
     html += `
-      <div class="search-result-item" onclick="viewAthlete('${athlete.id}')">
-        <div class="result-name">${escapeHtml(athlete.name)}</div>
-        <div class="result-meta">${escapeHtml(gender)} • ${escapeHtml(country)}</div>
+      <div class="search-result-item" data-athlete-id="${athlete.id}" onclick="viewAthlete('${athlete.id}')">
+        <div class="result-content">
+          <div class="result-name">${escapeHtml(athlete.name)}</div>
+          <div class="result-meta">${escapeHtml(gender)} • ${escapeHtml(country)}</div>
+        </div>
+        <div class="result-actions"></div>
       </div>
     `;
   });
 
   searchResults.innerHTML = html;
+
+  // Add claim buttons for authenticated users
+  if (window.addClaimButton) {
+    athletes.forEach(athlete => {
+      const resultItem = document.querySelector(`[data-athlete-id="${athlete.id}"]`);
+      if (resultItem) {
+        const actionsDiv = resultItem.querySelector('.result-actions');
+        if (actionsDiv && window.addClaimButton) {
+          // Check if already claimed, then add button
+          window.addClaimButton(athlete.id, athlete.name, actionsDiv);
+        }
+      }
+    });
+  }
 }
 
 /**

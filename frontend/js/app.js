@@ -3,6 +3,7 @@
 import { setupScrollAnimations, setupHeaderScroll, scrollToSection, scrollToTop } from './animations.js';
 import { initSearch } from './search.js';
 import { initAuth, getCurrentUser, getUserId, isAuthenticated } from './auth.js';
+import { handleStravaCallback, showMergeUI } from './claim.js';
 
 const API_BASE = window.API_BASE || '/api';
 
@@ -19,6 +20,19 @@ function initApp() {
   
   // Initialize auth
   initAuth();
+  
+  // Check if we're returning from OAuth and need to show admin page
+  // Wait a bit for auth to initialize
+  setTimeout(() => {
+    const hash = window.location.hash;
+    const path = window.location.pathname;
+    const normalizedPath = path.replace(/\/$/, '') || '/';
+    const pendingAdminAccess = sessionStorage.getItem('pendingAdminAccess');
+    
+    if ((hash === '#/admin' || normalizedPath === '/admin' || pendingAdminAccess === 'true') && isAuthenticated()) {
+      showAdminPage();
+    }
+  }, 500);
   
   // Load featured content
   loadFeaturedContent();
@@ -119,11 +133,19 @@ export function showLanding() {
  * Show admin page
  */
 export async function showAdminPage() {
+  // Set hash first so OAuth can redirect back to it
+  window.location.hash = '#/admin';
+  
   // Check authentication first
   if (!isAuthenticated()) {
+    // Store that we're trying to access admin
+    sessionStorage.setItem('pendingAdminAccess', 'true');
     showAuthModal();
     return;
   }
+
+  // Clear pending admin access flag
+  sessionStorage.removeItem('pendingAdminAccess');
 
   // Verify admin access
   const { verifyAdminAccess } = await import('./admin.js');
@@ -134,8 +156,6 @@ export async function showAdminPage() {
     showLanding();
     return;
   }
-
-  window.location.hash = '#/admin';
   
   const hero = document.getElementById('hero');
   const searchSection = document.getElementById('search');
@@ -333,9 +353,19 @@ function renderAthleteProfile(athlete, results, stats, trends) {
     renderPerformanceChart(trends);
   }
   
-  // Add follow button if authenticated
+  // Add watchlist button if authenticated (replaces follow button)
   if (isAuthenticated()) {
-    addFollowButton(athlete.id);
+    import('./watchlists.js').then(({ addWatchlistButton }) => {
+      const profileHeader = document.querySelector('.profile-header');
+      if (profileHeader) {
+        addWatchlistButton(athlete.id, profileHeader);
+      }
+    });
+    
+    // Add merge UI if user has verified claim
+    import('./claim.js').then(({ showMergeUI }) => {
+      showMergeUI(athlete.id);
+    });
   }
 }
 
