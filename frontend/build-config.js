@@ -6,8 +6,13 @@
  * Reads API_URL, SUPABASE_URL, and SUPABASE_ANON_KEY from environment variables
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const configPath = path.join(__dirname, 'config.js');
 const apiUrl = process.env.API_URL || 'https://graafin-web.onrender.com/api';
