@@ -3,685 +3,217 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Athlete Performance Platform</title>
+  <title>GRAAFIN - Track Your Performance Across Every Race</title>
+  <meta name="description" content="Track your race results across multiple events and organisers. Search athletes, view performance stats, and follow your progress.">
+  
+  <!-- External Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <!-- Load API configuration before main script -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  
+  <!-- Configuration -->
   <script src="config.js"></script>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
+  
+  <!-- Initialize Supabase global -->
+  <script>
+    // Make Supabase available globally
+    if (typeof supabase !== 'undefined') {
+      window.supabase = supabase;
     }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-      background: #f5f5f5;
-      color: #333;
-      line-height: 1.6;
-    }
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    header {
-      background: white;
-      padding: 20px;
-      margin-bottom: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    h1 {
-      color: #2563eb;
-      margin-bottom: 10px;
-    }
-    nav {
-      margin-top: 15px;
-    }
-    nav a {
-      margin-right: 20px;
-      text-decoration: none;
-      color: #666;
-      font-weight: 500;
-    }
-    nav a:hover, nav a.active {
-      color: #2563eb;
-    }
-    .card {
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      margin-bottom: 20px;
-    }
-    .search-box {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-    input[type="text"] {
-      flex: 1;
-      padding: 12px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 16px;
-    }
-    button {
-      padding: 12px 24px;
-      background: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 16px;
-      font-weight: 500;
-    }
-    button:hover {
-      background: #1d4ed8;
-    }
-    button:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-    .results-list {
-      list-style: none;
-    }
-    .result-item {
-      padding: 15px;
-      border-bottom: 1px solid #eee;
-      cursor: pointer;
-    }
-    .result-item:hover {
-      background: #f9fafb;
-    }
-    .result-item:last-child {
-      border-bottom: none;
-    }
-    .athlete-name {
-      font-weight: 600;
-      color: #2563eb;
-      margin-bottom: 5px;
-    }
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 15px;
-      margin-top: 20px;
-    }
-    .stat-card {
-      background: #f9fafb;
-      padding: 15px;
-      border-radius: 6px;
-    }
-    .stat-value {
-      font-size: 24px;
-      font-weight: 700;
-      color: #2563eb;
-    }
-    .stat-label {
-      color: #666;
-      font-size: 14px;
-      margin-top: 5px;
-    }
-    .loading {
-      text-align: center;
-      padding: 40px;
-      color: #666;
-    }
-    .error {
-      background: #fee;
-      color: #c33;
-      padding: 15px;
-      border-radius: 4px;
-      margin-bottom: 20px;
-    }
-    .hidden {
-      display: none;
-    }
-    .page {
-      display: none;
-    }
-    .page.active {
-      display: block;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
-      padding: 12px;
-      text-align: left;
-      border-bottom: 1px solid #eee;
-    }
-    th {
-      background: #f9fafb;
-      font-weight: 600;
-    }
-    .chart-container {
-      position: relative;
-      height: 300px;
-      margin-top: 20px;
-    }
-  </style>
+  </script>
+  
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>🏃 Athlete Performance Platform</h1>
-      <p>Track your race results across multiple events and organisers</p>
-      <nav>
-        <a href="#" onclick="showPage('search'); return false;" class="active" id="nav-search">Search</a>
-        <a href="#" onclick="showPage('dashboard'); return false;" id="nav-dashboard">Dashboard</a>
-        <a href="#" onclick="showPage('admin'); return false;" id="nav-admin">Admin</a>
+  <!-- Navigation Header -->
+  <header class="main-header" id="main-header">
+    <div class="header-container">
+      <div class="logo" onclick="scrollToTop()">
+        <span class="logo-text">GRAAFIN</span>
+      </div>
+      <nav class="main-nav" id="main-nav">
+        <a href="#search" class="nav-link" onclick="scrollToSection('search'); return false;">Search</a>
+        <a href="#features" class="nav-link" onclick="scrollToSection('features'); return false;">Features</a>
+        <button class="btn-signin" id="signin-btn" onclick="showAuthModal()">Sign In</button>
+        <div class="user-menu hidden" id="user-menu">
+          <button class="user-btn" id="user-btn">
+            <span id="user-name">User</span>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <div class="user-dropdown" id="user-dropdown">
+            <a href="#" onclick="showMyProfile(); return false;">My Profile</a>
+            <a href="#" onclick="signOut(); return false;">Sign Out</a>
+          </div>
+        </div>
       </nav>
-    </header>
+      <button class="mobile-menu-btn" id="mobile-menu-btn" onclick="toggleMobileMenu()">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </header>
 
-    <!-- Search Page -->
-    <div id="page-search" class="page active">
-      <div class="card">
-        <h2>Search Athletes</h2>
-        <div class="search-box">
-          <input type="text" id="search-input" placeholder="Enter athlete name..." onkeypress="if(event.key==='Enter') searchAthletes()">
-          <button onclick="searchAthletes()">Search</button>
-        </div>
-        <div id="search-results"></div>
+  <!-- Hero Section -->
+  <section class="hero" id="hero">
+    <div class="hero-background">
+      <div class="gradient-orb orb-1"></div>
+      <div class="gradient-orb orb-2"></div>
+      <div class="gradient-orb orb-3"></div>
+    </div>
+    <div class="hero-content">
+      <h1 class="hero-title fade-in">
+        <span class="brand-name">GRAAFIN</span>
+        <span class="brand-accent">.</span>
+      </h1>
+      <p class="hero-tagline fade-in delay-1">Track Your Performance Across Every Race</p>
+      <p class="hero-description fade-in delay-2">
+        Connect your results from multiple race organisers. Analyze your progress, 
+        compare with your category, and follow your journey to peak performance.
+      </p>
+      <div class="hero-cta fade-in delay-3">
+        <a href="#search" class="btn-primary" onclick="scrollToSection('search'); return false;">
+          Start Searching
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </a>
+      </div>
+      <div class="scroll-indicator fade-in delay-4">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M12 5V19M12 19L19 12M12 19L5 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
       </div>
     </div>
+  </section>
 
-    <!-- Dashboard Page -->
-    <div id="page-dashboard" class="page">
-      <div class="card">
-        <h2>Athlete Dashboard</h2>
-        <p>Enter athlete ID to view performance:</p>
-        <div class="search-box">
-          <input type="text" id="athlete-id-input" placeholder="Athlete ID...">
-          <button onclick="loadAthleteDashboard()">Load</button>
+  <!-- Search Section -->
+  <section class="search-section" id="search">
+    <div class="container">
+      <div class="search-wrapper">
+        <h2 class="section-title">Search Athletes</h2>
+        <p class="section-subtitle">Find athletes and explore their performance history</p>
+        <div class="search-container">
+          <div class="search-input-wrapper">
+            <svg class="search-icon" width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
+              <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <input 
+              type="text" 
+              id="search-input" 
+              class="search-input" 
+              placeholder="Enter athlete name..."
+              autocomplete="off"
+            />
+            <div class="search-loading hidden" id="search-loading">
+              <div class="spinner"></div>
+            </div>
+          </div>
+          <div class="search-results" id="search-results"></div>
         </div>
-        <div id="dashboard-content"></div>
       </div>
     </div>
+  </section>
 
-    <!-- Admin Page -->
-    <div id="page-admin" class="page">
-      <div class="card">
-        <h2>Admin: Scrape Event</h2>
-        <div style="margin-bottom: 15px;">
-          <label>Event URL:</label>
-          <input type="text" id="scrape-url" style="width: 100%; margin-top: 5px;" placeholder="https://results.hopasports.com/event/...">
+  <!-- Featured Content Section -->
+  <section class="features-section" id="features">
+    <div class="container">
+      <h2 class="section-title">Platform Features</h2>
+      <div class="features-grid">
+        <div class="feature-card fade-in">
+          <div class="feature-icon">📊</div>
+          <h3>Performance Analytics</h3>
+          <p>Track your progress over time with detailed performance metrics and trends</p>
         </div>
-        <div style="margin-bottom: 15px;">
-          <label>Organiser (optional):</label>
-          <input type="text" id="scrape-organiser" style="width: 100%; margin-top: 5px;" placeholder="hopasports">
+        <div class="feature-card fade-in delay-1">
+          <div class="feature-icon">🏃</div>
+          <h3>Multi-Event Tracking</h3>
+          <p>Connect results from multiple race organisers in one unified platform</p>
         </div>
-        <div style="margin-bottom: 15px;">
-          <label>API Key:</label>
-          <input type="password" id="admin-api-key" style="width: 100%; margin-top: 5px;" placeholder="Admin API key">
+        <div class="feature-card fade-in delay-2">
+          <div class="feature-icon">📈</div>
+          <h3>Category Comparison</h3>
+          <p>See how you stack up against your category with percentile rankings</p>
         </div>
-        <button onclick="triggerScrape()">Start Scraping</button>
-        <div id="scrape-status"></div>
-      </div>
-      <div class="card">
-        <h2>Scraping Jobs</h2>
-        <button onclick="loadScrapeJobs()">Refresh</button>
-        <div id="jobs-list"></div>
+        <div class="feature-card fade-in delay-3">
+          <div class="feature-icon">👥</div>
+          <h3>Follow Athletes</h3>
+          <p>Follow other athletes and see their latest results in your feed</p>
+        </div>
       </div>
       
-      <!-- Monitoring Section -->
-      <div class="card">
-        <h2>Endpoint Monitoring</h2>
-        <div style="margin-bottom: 20px;">
-          <h3>Quick Test</h3>
-          <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-            <input type="text" id="quick-test-url" style="flex: 1;" placeholder="https://results.hopasports.com/event/...">
-            <button onclick="quickTestEndpoint()">Test</button>
-          </div>
-          <div id="quick-test-result"></div>
+      <div class="stats-showcase fade-in delay-4" id="stats-showcase">
+        <div class="stat-item">
+          <div class="stat-value" id="stat-athletes">-</div>
+          <div class="stat-label">Athletes Tracked</div>
         </div>
-        
-        <div style="margin-bottom: 20px;">
-          <h3>Add Endpoint to Monitor</h3>
-          <div style="margin-bottom: 10px;">
-            <label>Name:</label>
-            <input type="text" id="monitor-name" style="width: 100%; margin-top: 5px;" placeholder="Hopasports - Marina Home 2026">
-          </div>
-          <div style="margin-bottom: 10px;">
-            <label>Organiser:</label>
-            <input type="text" id="monitor-organiser" style="width: 100%; margin-top: 5px;" placeholder="hopasports">
-          </div>
-          <div style="margin-bottom: 10px;">
-            <label>Endpoint URL:</label>
-            <input type="text" id="monitor-url" style="width: 100%; margin-top: 5px;" placeholder="https://results.hopasports.com/event/...">
-          </div>
-          <div style="margin-bottom: 10px;">
-            <label>Check Interval (minutes):</label>
-            <input type="number" id="monitor-interval" style="width: 100%; margin-top: 5px;" value="5" min="1">
-          </div>
-          <button onclick="addMonitoredEndpoint()">Add to Monitoring</button>
+        <div class="stat-item">
+          <div class="stat-value" id="stat-races">-</div>
+          <div class="stat-label">Races Recorded</div>
         </div>
-        
-        <div>
-          <h3>Monitored Endpoints</h3>
-          <button onclick="loadMonitoredEndpoints()">Refresh</button>
-          <div id="monitored-endpoints-list"></div>
+        <div class="stat-item">
+          <div class="stat-value" id="stat-events">-</div>
+          <div class="stat-label">Events Monitored</div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- Athlete Profile Page (Hidden by default) -->
+  <section class="profile-section hidden" id="profile-section">
+    <div class="container">
+      <button class="btn-back" onclick="showLanding()">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        Back to Search
+      </button>
+      <div id="profile-content"></div>
+    </div>
+  </section>
+
+  <!-- Auth Modal -->
+  <div class="modal-overlay hidden" id="auth-modal" onclick="closeAuthModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="closeAuthModal()">×</button>
+      <h2 class="modal-title">Sign In to GRAAFIN</h2>
+      <p class="modal-subtitle">Connect your account to claim results and follow athletes</p>
+      <div class="auth-providers">
+        <button class="auth-provider-btn" onclick="signInWithProvider('google')">
+          <svg width="20" height="20" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Continue with Google
+        </button>
+        <button class="auth-provider-btn" onclick="signInWithProvider('github')">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+          </svg>
+          Continue with GitHub
+        </button>
+        <button class="auth-provider-btn" onclick="signInWithProvider('apple')">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+          </svg>
+          Continue with Apple
+        </button>
+      </div>
+      <p class="auth-footer">By signing in, you agree to our Terms of Service and Privacy Policy</p>
     </div>
   </div>
 
-  <script>
-    // API_BASE is set by config.js
-    // Fallback to '/api' for local development if config.js fails
-    const API_BASE = window.API_BASE || '/api';
+  <!-- Loading Overlay -->
+  <div class="loading-overlay hidden" id="loading-overlay">
+    <div class="spinner-large"></div>
+  </div>
 
-    function showPage(pageId) {
-      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
-      document.getElementById(`page-${pageId}`).classList.add('active');
-      document.getElementById(`nav-${pageId}`).classList.add('active');
-    }
-
-    async function searchAthletes() {
-      const query = document.getElementById('search-input').value.trim();
-      const resultsDiv = document.getElementById('search-results');
-      
-      if (!query) {
-        resultsDiv.innerHTML = '<p style="color: #666;">Please enter a search query</p>';
-        return;
-      }
-
-      resultsDiv.innerHTML = '<div class="loading">Searching...</div>';
-
-      try {
-        const response = await fetch(`${API_BASE}/athletes/search?q=${encodeURIComponent(query)}`);
-        const data = await response.json();
-        
-        if (data.athletes && data.athletes.length > 0) {
-          let html = '<ul class="results-list">';
-          data.athletes.forEach(athlete => {
-            html += `
-              <li class="result-item" onclick="viewAthlete('${athlete.id}')">
-                <div class="athlete-name">${athlete.name}</div>
-                <div style="color: #666; font-size: 14px;">
-                  ${athlete.gender || 'Unknown'} | ${athlete.country || 'Unknown country'}
-                </div>
-              </li>
-            `;
-          });
-          html += '</ul>';
-          resultsDiv.innerHTML = html;
-        } else {
-          resultsDiv.innerHTML = '<p style="color: #666;">No athletes found</p>';
-        }
-      } catch (error) {
-        resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
-      }
-    }
-
-    async function viewAthlete(athleteId) {
-      showPage('dashboard');
-      document.getElementById('athlete-id-input').value = athleteId;
-      await loadAthleteDashboard();
-    }
-
-    async function loadAthleteDashboard() {
-      const athleteId = document.getElementById('athlete-id-input').value.trim();
-      const contentDiv = document.getElementById('dashboard-content');
-      
-      if (!athleteId) {
-        contentDiv.innerHTML = '<p style="color: #666;">Please enter an athlete ID</p>';
-        return;
-      }
-
-      contentDiv.innerHTML = '<div class="loading">Loading athlete data...</div>';
-
-      try {
-        const [athleteRes, resultsRes, statsRes] = await Promise.all([
-          fetch(`${API_BASE}/athletes/${athleteId}`),
-          fetch(`${API_BASE}/athletes/${athleteId}/results`),
-          fetch(`${API_BASE}/athletes/${athleteId}/performance/stats`)
-        ]);
-
-        const athlete = await athleteRes.json();
-        const results = await resultsRes.json();
-        const stats = await statsRes.json();
-
-        let html = `
-          <h3>${athlete.athlete.name}</h3>
-          <div class="stats-grid">
-            <div class="stat-card">
-              <div class="stat-value">${stats.stats.totalRaces}</div>
-              <div class="stat-label">Total Races</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${stats.stats.personalBests.fastestTime || 'N/A'}</div>
-              <div class="stat-label">Personal Best</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${stats.stats.categoryRankings.bestRank || 'N/A'}</div>
-              <div class="stat-label">Best Category Rank</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${stats.stats.recentTrend}</div>
-              <div class="stat-label">Recent Trend</div>
-            </div>
-          </div>
-        `;
-
-        if (results.results && results.results.length > 0) {
-          html += '<h3 style="margin-top: 30px;">Race Results</h3>';
-          html += '<table><thead><tr><th>Date</th><th>Finish Time</th><th>Position</th><th>Category Rank</th></tr></thead><tbody>';
-          results.results.slice(0, 10).forEach(result => {
-            html += `
-              <tr>
-                <td>${new Date(result.created_at).toLocaleDateString()}</td>
-                <td>${result.finish_time || 'N/A'}</td>
-                <td>${result.position || 'N/A'}</td>
-                <td>${result.category_position || 'N/A'}</td>
-              </tr>
-            `;
-          });
-          html += '</tbody></table>';
-        }
-
-        contentDiv.innerHTML = html;
-      } catch (error) {
-        contentDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
-      }
-    }
-
-    async function triggerScrape() {
-      const url = document.getElementById('scrape-url').value.trim();
-      const organiser = document.getElementById('scrape-organiser').value.trim();
-      const apiKey = document.getElementById('admin-api-key').value.trim();
-      const statusDiv = document.getElementById('scrape-status');
-
-      if (!url) {
-        statusDiv.innerHTML = '<div class="error">Event URL is required</div>';
-        return;
-      }
-
-      if (!apiKey) {
-        statusDiv.innerHTML = '<div class="error">API key is required</div>';
-        return;
-      }
-
-      statusDiv.innerHTML = '<div class="loading">Starting scrape job...</div>';
-
-      try {
-        const response = await fetch(`${API_BASE}/admin/scrape`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': apiKey
-          },
-          body: JSON.stringify({ eventUrl: url, organiser: organiser || undefined })
-        });
-
-        const data = await response.json();
-        
-        if (data.success) {
-          statusDiv.innerHTML = `
-            <div style="background: #dfd; color: #3a3; padding: 15px; border-radius: 4px; margin-top: 10px;">
-              Scrape job started!<br>
-              Job ID: ${data.jobId}<br>
-              Event ID: ${data.eventId}<br>
-              Results: ${data.resultsCount}
-            </div>
-          `;
-          loadScrapeJobs();
-        } else {
-          statusDiv.innerHTML = `<div class="error">Error: ${data.error}</div>`;
-        }
-      } catch (error) {
-        statusDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
-      }
-    }
-
-    async function loadScrapeJobs() {
-      const apiKey = document.getElementById('admin-api-key').value.trim();
-      const jobsDiv = document.getElementById('jobs-list');
-
-      if (!apiKey) {
-        jobsDiv.innerHTML = '<p style="color: #666;">Enter API key to view jobs</p>';
-        return;
-      }
-
-      jobsDiv.innerHTML = '<div class="loading">Loading jobs...</div>';
-
-      try {
-        const response = await fetch(`${API_BASE}/admin/scrape-jobs`, {
-          headers: { 'X-API-Key': apiKey }
-        });
-        const data = await response.json();
-        
-        if (data.jobs && data.jobs.length > 0) {
-          let html = '<table><thead><tr><th>Status</th><th>Organiser</th><th>URL</th><th>Results</th><th>Started</th></tr></thead><tbody>';
-          data.jobs.forEach(job => {
-            html += `
-              <tr>
-                <td>${job.status}</td>
-                <td>${job.organiser}</td>
-                <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${job.event_url}</td>
-                <td>${job.results_count || 0}</td>
-                <td>${new Date(job.started_at).toLocaleString()}</td>
-              </tr>
-            `;
-          });
-          html += '</tbody></table>';
-          jobsDiv.innerHTML = html;
-        } else {
-          jobsDiv.innerHTML = '<p style="color: #666;">No scraping jobs found</p>';
-        }
-      } catch (error) {
-        jobsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
-      }
-    }
-
-    // Monitoring functions
-    async function quickTestEndpoint() {
-      const url = document.getElementById('quick-test-url').value.trim();
-      const apiKey = document.getElementById('admin-api-key').value.trim();
-      const resultDiv = document.getElementById('quick-test-result');
-      
-      if (!url) {
-        resultDiv.innerHTML = '<p style="color: #666;">Please enter a URL</p>';
-        return;
-      }
-      
-      if (!apiKey) {
-        resultDiv.innerHTML = '<div class="error">API key required</div>';
-        return;
-      }
-      
-      resultDiv.innerHTML = '<div class="loading">Testing endpoint...</div>';
-      
-      try {
-        const response = await fetch(`${API_BASE}/admin/monitoring/quick-check`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': apiKey
-          },
-          body: JSON.stringify({ url })
-        });
-        
-        const data = await response.json();
-        
-        if (data.status) {
-          const status = data.status;
-          const statusIcon = status.isUp ? '✅' : '❌';
-          
-          resultDiv.innerHTML = `
-            <div style="background: ${status.isUp ? '#dfd' : '#fee'}; padding: 15px; border-radius: 4px; margin-top: 10px;">
-              ${statusIcon} <strong>Status: ${status.isUp ? 'UP' : 'DOWN'}</strong><br>
-              Status Code: ${status.statusCode}<br>
-              Response Time: ${status.responseTime}ms<br>
-              Has Results: ${status.hasResults ? 'Yes' : 'No'}<br>
-              ${status.error ? `Error: ${status.error}` : ''}
-            </div>
-          `;
-        } else {
-          resultDiv.innerHTML = `<div class="error">Error: ${data.error || 'Unknown error'}</div>`;
-        }
-      } catch (error) {
-        resultDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
-      }
-    }
-
-    async function addMonitoredEndpoint() {
-      const name = document.getElementById('monitor-name').value.trim();
-      const organiser = document.getElementById('monitor-organiser').value.trim();
-      const url = document.getElementById('monitor-url').value.trim();
-      const interval = parseInt(document.getElementById('monitor-interval').value) || 5;
-      const apiKey = document.getElementById('admin-api-key').value.trim();
-      
-      if (!name || !organiser || !url) {
-        alert('Please fill in all required fields');
-        return;
-      }
-      
-      if (!apiKey) {
-        alert('API key required');
-        return;
-      }
-      
-      try {
-        const response = await fetch(`${API_BASE}/admin/monitoring/endpoints`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': apiKey
-          },
-          body: JSON.stringify({ name, organiser, endpointUrl: url, checkIntervalMinutes: interval })
-        });
-        
-        const data = await response.json();
-        
-        if (data.endpoint) {
-          alert('Endpoint added successfully!');
-          document.getElementById('monitor-name').value = '';
-          document.getElementById('monitor-organiser').value = '';
-          document.getElementById('monitor-url').value = '';
-          loadMonitoredEndpoints();
-        } else {
-          alert(`Error: ${data.error || 'Unknown error'}`);
-        }
-      } catch (error) {
-        alert(`Error: ${error.message}`);
-      }
-    }
-
-    async function loadMonitoredEndpoints() {
-      const apiKey = document.getElementById('admin-api-key').value.trim();
-      const listDiv = document.getElementById('monitored-endpoints-list');
-      
-      if (!apiKey) {
-        listDiv.innerHTML = '<p style="color: #666;">Enter API key to view endpoints</p>';
-        return;
-      }
-      
-      listDiv.innerHTML = '<div class="loading">Loading endpoints...</div>';
-      
-      try {
-        const response = await fetch(`${API_BASE}/admin/monitoring/endpoints`, {
-          headers: { 'X-API-Key': apiKey }
-        });
-        const data = await response.json();
-        
-        if (data.endpoints && data.endpoints.length > 0) {
-          let html = '<table style="width: 100%; margin-top: 15px;"><thead><tr><th>Name</th><th>Organiser</th><th>Status</th><th>Last Checked</th><th>Actions</th></tr></thead><tbody>';
-          
-          data.endpoints.forEach(endpoint => {
-            const status = endpoint.currentStatus;
-            const statusIcon = status && status.status === 'up' ? '✅' : status && status.status === 'down' ? '❌' : '⏳';
-            const statusText = status ? status.status.toUpperCase() : 'Unknown';
-            const lastChecked = status ? new Date(status.lastChecked).toLocaleString() : 'Never';
-            
-            html += `
-              <tr>
-                <td>${endpoint.name}</td>
-                <td>${endpoint.organiser}</td>
-                <td>${statusIcon} ${statusText}</td>
-                <td>${lastChecked}</td>
-                <td>
-                  <button onclick="checkEndpoint('${endpoint.id}')" style="padding: 5px 10px; font-size: 12px;">Check Now</button>
-                  <button onclick="deleteEndpoint('${endpoint.id}')" style="padding: 5px 10px; font-size: 12px; background: #c33; color: white; border: none; border-radius: 4px; cursor: pointer;">Delete</button>
-                </td>
-              </tr>
-            `;
-          });
-          
-          html += '</tbody></table>';
-          listDiv.innerHTML = html;
-        } else {
-          listDiv.innerHTML = '<p style="color: #666;">No monitored endpoints. Add one above.</p>';
-        }
-      } catch (error) {
-        listDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
-      }
-    }
-
-    async function checkEndpoint(endpointId) {
-      const apiKey = document.getElementById('admin-api-key').value.trim();
-      
-      if (!apiKey) {
-        alert('API key required');
-        return;
-      }
-      
-      try {
-        const response = await fetch(`${API_BASE}/admin/monitoring/check/${endpointId}`, {
-          method: 'POST',
-          headers: {
-            'X-API-Key': apiKey
-          }
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          alert(`Check completed!\n\n${data.message}`);
-          loadMonitoredEndpoints();
-        } else {
-          alert(`Error: ${data.error || 'Unknown error'}`);
-        }
-      } catch (error) {
-        alert(`Error: ${error.message}`);
-      }
-    }
-
-    async function deleteEndpoint(endpointId) {
-      if (!confirm('Are you sure you want to delete this endpoint?')) {
-        return;
-      }
-      
-      const apiKey = document.getElementById('admin-api-key').value.trim();
-      
-      if (!apiKey) {
-        alert('API key required');
-        return;
-      }
-      
-      try {
-        const response = await fetch(`${API_BASE}/admin/monitoring/endpoints/${endpointId}`, {
-          method: 'DELETE',
-          headers: {
-            'X-API-Key': apiKey
-          }
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          alert('Endpoint deleted');
-          loadMonitoredEndpoints();
-        } else {
-          alert(`Error: ${data.error || 'Unknown error'}`);
-        }
-      } catch (error) {
-        alert(`Error: ${error.message}`);
-      }
-    }
-  </script>
+  <!-- Scripts -->
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>
