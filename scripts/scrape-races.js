@@ -16,7 +16,11 @@ import axios from 'axios';
 
 dotenv.config();
 
-const API_BASE = process.env.API_BASE || 'http://localhost:3000/api';
+// API_BASE can be set via environment variable
+// For local backend: http://localhost:3000/api
+// For remote backend (Render.com): https://graafin-web.onrender.com/api
+// For custom domain: https://api.graafin.club/api
+const API_BASE = process.env.API_BASE || process.env.API_URL || 'http://localhost:3000/api';
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
 
 if (!ADMIN_API_KEY) {
@@ -25,6 +29,8 @@ if (!ADMIN_API_KEY) {
   console.error('   export ADMIN_API_KEY=your-admin-api-key');
   process.exit(1);
 }
+
+console.log(`🔗 Using API: ${API_BASE}`);
 
 const eventUrl = process.argv[2];
 const organiser = process.argv[3];

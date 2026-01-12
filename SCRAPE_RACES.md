@@ -11,18 +11,38 @@ This guide helps you find and scrape races so athletes can search for themselves
 
 ### Option 1: Using the Script (Recommended)
 
+**For Remote Backend (Render.com):**
 ```bash
-# Make sure you have ADMIN_API_KEY set in .env or as environment variable
+# Set your admin API key and remote API URL
 export ADMIN_API_KEY=your-admin-api-key
+export API_BASE=https://graafin-web.onrender.com/api
 
 # Scrape a Hopasports race
 node scripts/scrape-races.js "https://results.hopasports.com/event/marina-home-dubai-creek-striders-half-marathon-10km-2026"
 
 # Scrape with explicit organiser
 node scripts/scrape-races.js "https://results.hopasports.com/event/plus500-city-half-marathon-dubai-2025" hopasports
+```
 
-# Scrape an EvoChip race
-node scripts/scrape-races.js "https://evochip.hu/results/result.php?distance=hm&category=none&timepoint=none&eventid=DubaiCreekHalf26DAd&year=&lang=en&css=evochip.css&iframe=0&mobile=0&viewport=device-width" evochip
+**For Local Backend:**
+```bash
+# Set your admin API key (API_BASE defaults to localhost)
+export ADMIN_API_KEY=your-admin-api-key
+
+# Scrape a race
+node scripts/scrape-races.js "https://results.hopasports.com/event/marina-home-dubai-creek-striders-half-marathon-10km-2026"
+```
+
+**Using .env file:**
+Create or update `.env` in the project root:
+```bash
+ADMIN_API_KEY=your-admin-api-key
+API_BASE=https://graafin-web.onrender.com/api
+```
+
+Then run:
+```bash
+node scripts/scrape-races.js "https://results.hopasports.com/event/marina-home-dubai-creek-striders-half-marathon-10km-2026"
 ```
 
 ### Option 2: Using the Admin API Directly
@@ -111,6 +131,42 @@ After scraping, verify athletes can be found:
 1. Go to https://graafin.club
 2. Use the search bar to search for athlete names
 3. If results appear, the scrape was successful!
+
+## Configuration
+
+### Setting API_BASE for Remote Backend
+
+If your backend is deployed on Render.com (or another remote server), set `API_BASE`:
+
+**Option 1: Environment Variable**
+```bash
+export API_BASE=https://graafin-web.onrender.com/api
+```
+
+**Option 2: .env File**
+Add to `.env`:
+```bash
+API_BASE=https://graafin-web.onrender.com/api
+```
+
+**Option 3: API_URL (also works)**
+The script also accepts `API_URL`:
+```bash
+export API_URL=https://graafin-web.onrender.com/api
+```
+
+**Default:** If not set, defaults to `http://localhost:3000/api` (for local development)
+
+### Finding Your Backend URL
+
+1. **Render.com:**
+   - Go to https://dashboard.render.com
+   - Find your web service
+   - Copy the service URL (e.g., `https://graafin-web.onrender.com`)
+   - Add `/api`: `https://graafin-web.onrender.com/api`
+
+2. **Custom Domain:**
+   - If you have `api.graafin.club` set up: `https://api.graafin.club/api`
 
 ## Troubleshooting
 
