@@ -973,5 +973,5 @@ if (enableStaticFiles) {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🏃 GRAAFIN server running on port ${PORT}`);
   console.log(`📁 Results files: ${getResultsFilePath('dcs')}, ${getResultsFilePath('plus500')}`);
-  console.log(`📦 Static files: ${enableStaticFiles ? 'enabled' : 'disabled' (API-only mode)`);
+  console.log(`📦 Static files: ${enableStaticFiles ? 'enabled' : 'disabled (API-only mode)'}`);
 });
