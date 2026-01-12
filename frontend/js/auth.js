@@ -156,10 +156,17 @@ export async function signInWithProvider(provider) {
   }
 
   try {
+    // Use current origin for redirect, ensuring we return to the same page
+    const redirectTo = window.location.origin + window.location.pathname;
+    
     const { data, error } = await supabaseClient.auth.signInWithOAuth({
       provider: provider,
       options: {
-        redirectTo: window.location.origin
+        redirectTo: redirectTo,
+        queryParams: {
+          // Preserve hash if present (e.g., #/admin)
+          ...(window.location.hash ? { hash: window.location.hash } : {})
+        }
       }
     });
 
