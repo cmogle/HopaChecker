@@ -1369,6 +1369,219 @@ app.get('/api/athletes/:id/performance/comparison', async (req, res) => {
   }
 });
 
+// ============================================================================
+// AGE-GRADING & SEASON BESTS API ENDPOINTS
+// ============================================================================
+
+// Age-Grading: Get age-graded performance over time
+app.get('/api/athletes/:id/age-graded-performance', async (req, res) => {
+  try {
+    const { getAgeGradedPerformanceOverTime } = await import('./analytics/age-grading.js');
+    const { getAthleteResults, getAthleteById } = await import('./storage/supabase.js');
+    const athleteId = req.params.id;
+    const distance = (req.query.distance as string) || '10K';
+
+    const athlete = await getAthleteById(athleteId);
+    if (!athlete) {
+      return res.status(404).json({ error: 'Athlete not found' });
+    }
+
+    const results = await getAthleteResults(athleteId);
+    const performance = await getAgeGradedPerformanceOverTime(
+      results,
+      athlete.date_of_birth,
+      distance
+    );
+
+    return res.json({ performance });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Season Bests: Get season bests
+app.get('/api/athletes/:id/season-bests', async (req, res) => {
+  try {
+    const { calculateSeasonBests } = await import('./analytics/season-bests.js');
+    const athleteId = req.params.id;
+    const year = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
+
+    const seasonBests = await calculateSeasonBests(athleteId, year);
+    return res.json({ seasonBests });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Badges: Get achievement badges
+app.get('/api/athletes/:id/badges', async (req, res) => {
+  try {
+    const { getSeasonBestBadges } = await import('./analytics/season-bests.js');
+    const athleteId = req.params.id;
+
+    const badges = await getSeasonBestBadges(athleteId);
+    return res.json({ badges });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// ============================================================================
+// COMPETITIVE INTELLIGENCE API ENDPOINTS
+// ============================================================================
+
+// Head-to-Head: Compare two athletes
+app.get('/api/athletes/:id1/vs/:id2', async (req, res) => {
+  try {
+    const { calculateHeadToHead } = await import('./analytics/head-to-head.js');
+    const h2h = await calculateHeadToHead(req.params.id1, req.params.id2);
+    return res.json({ h2h });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Percentiles: Get performance percentile
+app.get('/api/athletes/:id/percentiles', async (req, res) => {
+  try {
+    const { calculatePercentile } = await import('./analytics/percentiles.js');
+    const athleteId = req.params.id;
+    const distance = (req.query.distance as string) || '10K';
+    const location = req.query.location as string | undefined;
+
+    const percentile = await calculatePercentile(athleteId, distance, location);
+    if (!percentile) {
+      return res.status(404).json({ error: 'Insufficient data to calculate percentile' });
+    }
+
+    return res.json({ percentile });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Course Difficulty: Get CDI for event
+app.get('/api/events/:id/difficulty', async (req, res) => {
+  try {
+    const { calculateCourseDifficulty } = await import('./analytics/course-difficulty.js');
+    const cdi = await calculateCourseDifficulty(req.params.id);
+    if (!cdi) {
+      return res.status(404).json({ error: 'Could not calculate course difficulty' });
+    }
+    return res.json({ cdi });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// ============================================================================
+// LEAGUES API ENDPOINTS
+// ============================================================================
+
+// Leagues: List all leagues
+app.get('/api/leagues', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const type = req.query.type as string | undefined;
+
+    let query = supabase.from('leagues').select('*');
+    if (type) {
+      query = query.eq('type', type);
+    }
+
+    const { data: leagues, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to get leagues: ${error.message}`);
+    }
+
+    return res.json({ leagues: leagues || [] });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Leagues: Get league details
+app.get('/api/leagues/:id', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const leagueId = req.params.id;
+
+    const { data: league, error } = await supabase
+      .from('leagues')
+      .select('*')
+      .eq('id', leagueId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'League not found' });
+      }
+      throw new Error(`Failed to get league: ${error.message}`);
+    }
+
+    return res.json({ league });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Leagues: Get league rankings
+app.get('/api/leagues/:id/rankings', async (req, res) => {
+  try {
+    const { calculateLeagueRankings } = await import('./analytics/leagues.js');
+    const leagueId = req.params.id;
+
+    // Recalculate rankings
+    const rankings = await calculateLeagueRankings(leagueId);
+    return res.json({ rankings });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Leagues: Get leagues for athlete
+app.get('/api/athletes/:id/leagues', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const athleteId = req.params.id;
+
+    const { data: rankings, error } = await supabase
+      .from('league_rankings')
+      .select(`
+        rank,
+        points,
+        leagues!inner (
+          id,
+          name,
+          description,
+          type,
+          criteria
+        )
+      `)
+      .eq('athlete_id', athleteId)
+      .order('rank', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to get athlete leagues: ${error.message}`);
+    }
+
+    return res.json({ leagues: rankings || [] });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
 // Following: Follow athlete
 app.post('/api/athletes/:id/follow', async (req, res) => {
   try {

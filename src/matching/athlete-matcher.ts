@@ -11,6 +11,7 @@ interface MatchCandidate {
 
 /**
  * Find potential athlete matches for a race result
+ * Enhanced with multi-factor matching (name, position proximity, club, geography)
  */
 export async function findMatchesForResult(
   result: RaceResultRow,
@@ -35,16 +36,95 @@ export async function findMatchesForResult(
     minMatchCharLength: 2,
   });
 
-  const matches = fuse.search(normalizedResultName);
+  const nameMatches = fuse.search(normalizedResultName);
   
-  return matches
-    .filter((match) => match.score !== undefined && match.score < threshold)
-    .map((match) => ({
-      athlete: match.item,
-      result,
-      score: match.score || 1,
-      confidence: Math.round((1 - (match.score || 1)) * 100),
-    }));
+  // Calculate multi-factor confidence scores
+  const candidates = await Promise.all(
+    nameMatches
+      .filter((match) => match.score !== undefined && match.score < threshold)
+      .map(async (match) => {
+        const baseScore = match.score || 1;
+        const nameConfidence = Math.round((1 - baseScore) * 100);
+        
+        // Additional factors
+        const positionScore = await calculatePositionProximityScore(result, match.item.id);
+        const clubScore = await calculateClubMatchScore(result, match.item);
+        const geographyScore = await calculateGeographyScore(result, match.item);
+        
+        // Weighted confidence: name (60%), position (20%), club (10%), geography (10%)
+        const totalConfidence = Math.min(100, Math.round(
+          nameConfidence * 0.6 +
+          positionScore * 0.2 +
+          clubScore * 0.1 +
+          geographyScore * 0.1
+        ));
+
+        return {
+          athlete: match.item,
+          result,
+          score: baseScore,
+          confidence: totalConfidence,
+        };
+      })
+  );
+
+  return candidates.sort((a, b) => b.confidence - a.confidence);
+}
+
+/**
+ * Calculate position proximity score (if athletes finish near each other in multiple races)
+ */
+async function calculatePositionProximityScore(
+  result: RaceResultRow,
+  athleteId: string
+): Promise<number> {
+  if (!result.position || !result.event_id) return 0;
+
+  const { getAthleteResults } = await import('../storage/supabase.js');
+  const athleteResults = await getAthleteResults(athleteId);
+
+  // Find results in the same event
+  const sameEventResults = athleteResults.filter(r => r.event_id === result.event_id);
+  
+  if (sameEventResults.length === 0) return 0;
+
+  // Check if positions are close (within 10 positions)
+  for (const athleteResult of sameEventResults) {
+    if (athleteResult.position && Math.abs(athleteResult.position - result.position) <= 10) {
+      return 50; // Moderate confidence boost
+    }
+  }
+
+  return 0;
+}
+
+/**
+ * Calculate club match score (if both have same club affiliation)
+ */
+async function calculateClubMatchScore(
+  result: RaceResultRow,
+  athlete: Athlete
+): Promise<number> {
+  // TODO: Extract club from result metadata or athlete profile
+  // For now, return 0 as club data may not be available
+  return 0;
+}
+
+/**
+ * Calculate geography score (if both are from same location)
+ */
+async function calculateGeographyScore(
+  result: RaceResultRow,
+  athlete: Athlete
+): Promise<number> {
+  if (!athlete.country) return 0;
+
+  // Check if result country matches athlete country
+  if (result.country && result.country.toLowerCase() === athlete.country.toLowerCase()) {
+    return 30; // Small confidence boost
+  }
+
+  return 0;
 }
 
 /**

@@ -322,6 +322,7 @@ function renderAthleteProfile(athlete, results, stats, trends) {
               <th>Finish Time</th>
               <th>Position</th>
               <th>Category Rank</th>
+              <th>Source</th>
             </tr>
           </thead>
           <tbody>
@@ -335,6 +336,7 @@ function renderAthleteProfile(athlete, results, stats, trends) {
           <td>${escapeHtml(result.finish_time || 'N/A')}</td>
           <td>${result.position || 'N/A'}</td>
           <td>${result.category_position || 'N/A'}</td>
+          ${result.event_url ? `<td><a href="${escapeHtml(result.event_url)}" target="_blank" rel="noopener">View Source</a></td>` : '<td></td>'}
         </tr>
       `;
     });
