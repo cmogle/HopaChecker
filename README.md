@@ -1,4 +1,4 @@
-# HopaChecker
+# GRAAFIN
 
 Monitor, scrape, and search Dubai Creek Striders Half Marathon results with WhatsApp notifications and a hosted search UI.
 
@@ -53,7 +53,7 @@ npm run search "John Smith"
 3. Click **New** > **Blueprint**
 4. Connect your GitHub repo
 5. Render will create:
-   - **Web Service** - Search UI at `hopachecker-web.onrender.com`
+   - **Web Service** - Search UI at `GRAAFIN-web.onrender.com`
    - **Cron Job** - Monitors every 5 min, auto-scrapes on recovery
    - **Persistent Disk** - Stores results across deploys
 6. Add environment variables in Render dashboard:
@@ -106,7 +106,7 @@ When running the web server:
 ## Project Structure
 
 ```
-HopaChecker/
+GRAAFIN/
 ├── src/
 │   ├── index.ts              # CLI entry point
 │   ├── server.ts             # Express web server
