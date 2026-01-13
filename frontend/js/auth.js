@@ -26,6 +26,14 @@ export function isAuthReady() {
 }
 
 /**
+ * Check if URL contains OAuth callback tokens
+ */
+function hasOAuthCallbackTokens() {
+  const hash = window.location.hash;
+  return hash.includes('access_token=') || hash.includes('error=');
+}
+
+/**
  * Initialize Supabase client
  */
 export function initAuth() {
@@ -43,27 +51,68 @@ export function initAuth() {
   try {
     // Check if supabase is available
     if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
-      supabaseClient = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+      supabaseClient = window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          detectSessionInUrl: true,
+          flowType: 'implicit'
+        }
+      });
 
       // Listen for auth state changes
       supabaseClient.auth.onAuthStateChange((event, session) => {
+        console.log('[Auth] State change:', event, session ? 'has session' : 'no session');
         handleAuthStateChange(event, session);
       });
 
-      // Check for existing session
-      supabaseClient.auth.getSession().then(({ data: { session } }) => {
-        if (session) {
-          currentUser = session.user;
-          updateAuthUI(session.user);
-        }
-        // Mark auth as ready after initial session check
-        authReady = true;
-        authReadyResolve();
-      }).catch((error) => {
-        console.error('Error getting session:', error);
-        authReady = true;
-        authReadyResolve();
-      });
+      // Check if this is an OAuth callback (tokens in URL hash)
+      if (hasOAuthCallbackTokens()) {
+        console.log('[Auth] OAuth callback detected, waiting for Supabase to process tokens...');
+        // Supabase will automatically process the tokens and trigger onAuthStateChange
+        // We need to wait a bit for that to happen
+        setTimeout(() => {
+          supabaseClient.auth.getSession().then(({ data: { session }, error }) => {
+            if (error) {
+              console.error('[Auth] Error processing OAuth callback:', error);
+            }
+            if (session) {
+              console.log('[Auth] Session established from OAuth callback');
+              currentUser = session.user;
+              updateAuthUI(session.user);
+            } else {
+              console.log('[Auth] No session after OAuth callback');
+            }
+            // Clear the hash to clean up URL (remove tokens)
+            if (window.location.hash.includes('access_token=')) {
+              // Preserve any pending admin access
+              const pendingAdmin = sessionStorage.getItem('pendingAdminAccess');
+              window.history.replaceState(null, '', window.location.pathname);
+              if (pendingAdmin) {
+                window.location.hash = '#/admin';
+              }
+            }
+            authReady = true;
+            authReadyResolve();
+          });
+        }, 100);
+      } else {
+        // Normal session check (no OAuth callback)
+        supabaseClient.auth.getSession().then(({ data: { session } }) => {
+          if (session) {
+            console.log('[Auth] Existing session found');
+            currentUser = session.user;
+            updateAuthUI(session.user);
+          } else {
+            console.log('[Auth] No existing session');
+          }
+          // Mark auth as ready after initial session check
+          authReady = true;
+          authReadyResolve();
+        }).catch((error) => {
+          console.error('Error getting session:', error);
+          authReady = true;
+          authReadyResolve();
+        });
+      }
     } else {
       console.warn('Supabase library not loaded. Make sure @supabase/supabase-js is included.');
       authReady = true;
