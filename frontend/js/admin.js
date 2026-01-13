@@ -263,12 +263,55 @@ export async function checkDuplicate() {
 }
 
 /**
+ * Show scrape progress indicator
+ */
+function showScrapeProgress(stage, message, details = {}) {
+  const statusDiv = document.getElementById('scrape-status');
+  if (!statusDiv) return;
+
+  const stages = ['initiated', 'connecting', 'scraping', 'saving', 'complete'];
+  const stageIndex = stages.indexOf(stage);
+  const progressPercent = stage === 'complete' ? 100 : Math.max(10, (stageIndex / (stages.length - 1)) * 90);
+
+  const stageLabels = {
+    initiated: 'Initiated',
+    connecting: 'Connecting',
+    scraping: 'Scraping',
+    saving: 'Saving',
+    complete: 'Complete',
+    error: 'Error'
+  };
+
+  const isError = stage === 'error';
+  const isComplete = stage === 'complete';
+
+  statusDiv.innerHTML = `
+    <div class="scrape-progress ${isError ? 'scrape-progress--error' : ''} ${isComplete ? 'scrape-progress--complete' : ''}">
+      <div class="scrape-progress__header">
+        <span class="scrape-progress__stage">${stageLabels[stage] || stage}</span>
+        ${!isError && !isComplete ? '<span class="scrape-progress__spinner"></span>' : ''}
+        ${isComplete ? '<span class="scrape-progress__check">&#10003;</span>' : ''}
+        ${isError ? '<span class="scrape-progress__x">&#10005;</span>' : ''}
+      </div>
+      <div class="scrape-progress__bar-container">
+        <div class="scrape-progress__bar" style="width: ${progressPercent}%"></div>
+      </div>
+      <div class="scrape-progress__message">${escapeHtml(message)}</div>
+      ${details.resultsCount !== undefined ? `<div class="scrape-progress__results">Results scraped: <strong>${details.resultsCount}</strong></div>` : ''}
+      ${details.jobId ? `<div class="scrape-progress__jobid">Job ID: ${details.jobId}</div>` : ''}
+      ${!isError && !isComplete ? '<div class="scrape-progress__hint">You can navigate away - scraping continues in the background</div>' : ''}
+    </div>
+  `;
+}
+
+/**
  * Start scraping
  */
 export async function startScrape() {
   const urlInput = document.getElementById('scrape-url');
   const organiserInput = document.getElementById('scrape-organiser');
   const statusDiv = document.getElementById('scrape-status');
+  const startButton = document.querySelector('.admin-form .btn-primary');
 
   if (!urlInput || !statusDiv) return;
 
@@ -281,8 +324,21 @@ export async function startScrape() {
   const organiser = organiserInput?.value.trim() || undefined;
   const overwrite = currentDuplicateCheck?.isDuplicate || false;
 
+  // Disable button during scrape
+  if (startButton) {
+    startButton.disabled = true;
+    startButton.textContent = 'Scraping...';
+  }
+
   try {
-    statusDiv.innerHTML = '<div class="loading-message">Starting scrape...</div>';
+    // Stage 1: Initiated
+    showScrapeProgress('initiated', 'Preparing to scrape...');
+
+    // Small delay to show initiated state
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Stage 2: Connecting
+    showScrapeProgress('connecting', `Connecting to ${new URL(url).hostname}...`);
 
     const data = await apiCall('/admin/scrape', {
       method: 'POST',
@@ -294,13 +350,12 @@ export async function startScrape() {
     });
 
     if (data.success) {
-      statusDiv.innerHTML = `
-        <div class="success-message">
-          Scrape started successfully! Job ID: ${data.jobId}<br>
-          Results: ${data.resultsCount || 0}
-        </div>
-      `;
-      
+      // Stage 5: Complete
+      showScrapeProgress('complete', 'Scrape completed successfully!', {
+        jobId: data.jobId,
+        resultsCount: data.resultsCount || 0
+      });
+
       // Clear form
       urlInput.value = '';
       if (organiserInput) organiserInput.value = '';
@@ -316,7 +371,7 @@ export async function startScrape() {
     }
   } catch (error) {
     console.error('Error starting scrape:', error);
-    
+
     // Check if it's a duplicate error
     if (error.message.includes('Duplicate') || error.message.includes('409')) {
       // Try to parse the error response
@@ -333,11 +388,12 @@ export async function startScrape() {
             overwrite: false,
           }),
         });
-        
+
         if (response.status === 409) {
           const errorData = await response.json();
           currentDuplicateCheck = errorData;
           showDuplicateModal(errorData);
+          statusDiv.innerHTML = ''; // Clear progress on duplicate
           return;
         }
       } catch (e) {
@@ -345,7 +401,13 @@ export async function startScrape() {
       }
     }
 
-    statusDiv.innerHTML = `<div class="error-message">Error: ${escapeHtml(error.message)}</div>`;
+    showScrapeProgress('error', error.message);
+  } finally {
+    // Re-enable button
+    if (startButton) {
+      startButton.disabled = false;
+      startButton.textContent = 'Start Scrape';
+    }
   }
 }
 
