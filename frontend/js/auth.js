@@ -2,6 +2,28 @@
 
 let supabaseClient = null;
 let currentUser = null;
+let authReady = false;
+let authReadyPromise = null;
+let authReadyResolve = null;
+
+// Create a promise that resolves when auth state is determined
+authReadyPromise = new Promise((resolve) => {
+  authReadyResolve = resolve;
+});
+
+/**
+ * Wait for auth to be initialized
+ */
+export function waitForAuth() {
+  return authReadyPromise;
+}
+
+/**
+ * Check if auth initialization is complete
+ */
+export function isAuthReady() {
+  return authReady;
+}
 
 /**
  * Initialize Supabase client
@@ -13,6 +35,8 @@ export function initAuth() {
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.warn('Supabase credentials not configured. Authentication will be disabled.');
+    authReady = true;
+    authReadyResolve();
     return;
   }
 
@@ -20,7 +44,7 @@ export function initAuth() {
     // Check if supabase is available
     if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
       supabaseClient = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
-      
+
       // Listen for auth state changes
       supabaseClient.auth.onAuthStateChange((event, session) => {
         handleAuthStateChange(event, session);
@@ -31,22 +55,24 @@ export function initAuth() {
         if (session) {
           currentUser = session.user;
           updateAuthUI(session.user);
-          
-          // If we're on /admin and just got authenticated, show admin page
-          const path = window.location.pathname;
-          const hash = window.location.hash;
-          if ((path === '/admin' || hash === '#/admin') && window.showAdminPage) {
-            setTimeout(() => {
-              window.showAdminPage();
-            }, 100);
-          }
         }
+        // Mark auth as ready after initial session check
+        authReady = true;
+        authReadyResolve();
+      }).catch((error) => {
+        console.error('Error getting session:', error);
+        authReady = true;
+        authReadyResolve();
       });
     } else {
       console.warn('Supabase library not loaded. Make sure @supabase/supabase-js is included.');
+      authReady = true;
+      authReadyResolve();
     }
   } catch (error) {
     console.error('Failed to initialize Supabase:', error);
+    authReady = true;
+    authReadyResolve();
   }
 }
 

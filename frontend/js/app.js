@@ -2,7 +2,7 @@
 
 import { setupScrollAnimations, setupHeaderScroll, scrollToSection, scrollToTop } from './animations.js';
 import { initSearch } from './search.js';
-import { initAuth, getCurrentUser, getUserId, isAuthenticated } from './auth.js';
+import { initAuth, getCurrentUser, getUserId, isAuthenticated, waitForAuth } from './auth.js';
 import { handleStravaCallback, showMergeUI } from './claim.js';
 
 const API_BASE = window.API_BASE || '/api';
@@ -63,18 +63,19 @@ export function toggleMobileMenu() {
 /**
  * Setup client-side routing
  */
-function setupRouting() {
+async function setupRouting() {
   // Handle hash changes
   window.addEventListener('hashchange', handleRoute);
-  
+
   // Handle popstate (browser back/forward)
   window.addEventListener('popstate', handleRoute);
-  
-  // Wait for auth to initialize before handling initial route
-  // This ensures we can check authentication state properly
-  setTimeout(() => {
-    handleRoute();
-  }, 300);
+
+  // Wait for auth to fully initialize before handling initial route
+  // This ensures we have the correct authentication state
+  await waitForAuth();
+
+  // Handle the initial route now that auth is ready
+  handleRoute();
 }
 
 /**
@@ -143,33 +144,9 @@ export async function showAdminPage() {
     window.location.hash = '#/admin';
   }
 
-  // Wait for auth to initialize with retry logic
-  const { getSupabaseClient } = await import('./auth.js');
-  const supabaseClient = getSupabaseClient();
+  // Ensure auth is ready (should already be, but be safe)
+  await waitForAuth();
 
-  if (supabaseClient) {
-    // Retry session check to handle race conditions with auth initialization
-    let retries = 3;
-    while (retries > 0) {
-      try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session) {
-          // Session found - give auth state listener time to update currentUser
-          await new Promise(resolve => setTimeout(resolve, 150));
-          break;
-        }
-      } catch (error) {
-        console.error('Error checking session:', error);
-      }
-      // Wait before retry
-      await new Promise(resolve => setTimeout(resolve, 200));
-      retries--;
-    }
-  }
-
-  // Additional delay to let auth state fully settle
-  await new Promise(resolve => setTimeout(resolve, 100));
-  
   // Check authentication
   if (!isAuthenticated()) {
     // Store that we're trying to access admin
