@@ -55,9 +55,15 @@ export async function processScrapeJob(request: ScrapeJobRequest): Promise<Scrap
     await updateScrapeJob(job.id, { status: 'running' });
 
     // Get the appropriate scraper
-    const scraper = request.organiser
+    // First try by organiser name (if provided and not 'unknown'), then fall back to URL matching
+    let scraper = (request.organiser && request.organiser !== 'unknown')
       ? (await import('./index.js')).getScraperByOrganiser(request.organiser)
-      : getScraperForUrl(request.eventUrl);
+      : null;
+
+    // If no scraper found by organiser, try URL matching
+    if (!scraper) {
+      scraper = getScraperForUrl(request.eventUrl);
+    }
 
     if (!scraper) {
       throw new Error(`No scraper available for URL: ${request.eventUrl}`);
