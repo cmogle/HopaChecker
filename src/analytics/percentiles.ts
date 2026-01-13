@@ -60,15 +60,15 @@ export async function calculatePercentile(
       return matchesDistanceString(eventDistance, distance);
     })
     .map((r: any) => parseTimeToSeconds(r.finish_time))
-    .filter((t): t is number => t !== null)
-    .sort((a, b) => a - b);
+    .filter((t: number | null): t is number => t !== null)
+    .sort((a: number, b: number) => a - b);
 
   if (allTimes.length === 0) {
     return null;
   }
 
   // Calculate percentile
-  const rank = allTimes.filter(t => t < athleteBestSeconds).length;
+  const rank = allTimes.filter((t: number) => t < athleteBestSeconds).length;
   const percentile = Math.round((rank / allTimes.length) * 100);
 
   // Calculate median

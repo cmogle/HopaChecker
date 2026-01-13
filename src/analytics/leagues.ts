@@ -122,8 +122,8 @@ export async function calculateLeagueRankings(leagueId: string): Promise<LeagueR
     .select('id, name')
     .in('id', athleteIds);
 
-  const athleteMap = new Map(
-    (athletes || []).map((a: any) => [a.id, a.name])
+  const athleteMap = new Map<string, string>(
+    (athletes || []).map((a: any) => [a.id as string, a.name as string])
   );
 
   // Sort by best time (fastest first)
@@ -137,8 +137,8 @@ export async function calculateLeagueRankings(leagueId: string): Promise<LeagueR
     .map((entry, index) => ({
       rank: index + 1,
       athleteId: entry.athleteId,
-      athleteName: entry.name,
-      points: null, // TODO: Implement points system
+      athleteName: entry.name as string,
+      points: null as number | null, // TODO: Implement points system
     }));
 
   // Save rankings to database

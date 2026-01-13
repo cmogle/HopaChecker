@@ -47,13 +47,13 @@ export async function calculateCourseDifficulty(eventId: string): Promise<Course
   // Calculate their average time in this race
   const raceTimes = topFinishers
     .map((r: any) => parseTimeToSeconds(r.finish_time))
-    .filter((t): t is number => t !== null);
+    .filter((t: number | null): t is number => t !== null);
 
   if (raceTimes.length === 0) {
     return null;
   }
 
-  const raceAverage = raceTimes.reduce((sum, t) => sum + t, 0) / raceTimes.length;
+  const raceAverage = raceTimes.reduce((sum: number, t: number) => sum + t, 0) / raceTimes.length;
 
   // Calculate their historical average (all other races)
   const historicalAverages: number[] = [];
@@ -69,10 +69,10 @@ export async function calculateCourseDifficulty(eventId: string): Promise<Course
     if (athleteResults && athleteResults.length > 0) {
       const times = athleteResults
         .map((r: any) => parseTimeToSeconds(r.finish_time))
-        .filter((t): t is number => t !== null);
+        .filter((t: number | null): t is number => t !== null);
 
       if (times.length > 0) {
-        const avg = times.reduce((sum, t) => sum + t, 0) / times.length;
+        const avg = times.reduce((sum: number, t: number) => sum + t, 0) / times.length;
         historicalAverages.push(avg);
       }
     }
