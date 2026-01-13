@@ -83,7 +83,7 @@ export async function calculatePercentile(
     percentile: 100 - percentile, // Top X% (higher is better)
     rank: rank + 1,
     totalAthletes: allTimes.length,
-    athleteTime: athleteBestTime,
+    athleteTime: athleteBestTime || '',
     medianTime,
   };
 }

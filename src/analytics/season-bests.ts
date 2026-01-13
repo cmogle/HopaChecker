@@ -1,5 +1,15 @@
-import { getAthleteResults, type RaceResultRow } from '../storage/supabase.js';
+import { getAthleteResults } from '../storage/supabase.js';
 import { parseTimeToSeconds, formatTimeFromSeconds } from './age-grading.js';
+
+// Database row type (snake_case) - matches Supabase schema
+interface DbRaceResultRow {
+  id: string;
+  event_id: string;
+  athlete_id: string | null;
+  finish_time: string | null;
+  created_at: string;
+  metadata: Record<string, unknown> | null;
+}
 
 export interface SeasonBest {
   distance: string;
@@ -28,11 +38,11 @@ export async function calculateSeasonBests(
   athleteId: string,
   year?: number
 ): Promise<SeasonBest[]> {
-  const results = await getAthleteResults(athleteId);
-  
+  const results = await getAthleteResults(athleteId) as DbRaceResultRow[];
+
   // Use current year if not specified
   const targetYear = year || new Date().getFullYear();
-  
+
   // Filter results for the target year
   const yearResults = results.filter((result) => {
     const resultDate = new Date(result.created_at);
@@ -40,8 +50,8 @@ export async function calculateSeasonBests(
   });
 
   // Group by distance
-  const distanceMap = new Map<string, RaceResultRow[]>();
-  
+  const distanceMap = new Map<string, DbRaceResultRow[]>();
+
   for (const result of yearResults) {
     // Extract distance from metadata or event
     const distance = extractDistance(result);
@@ -57,7 +67,7 @@ export async function calculateSeasonBests(
   const seasonBests: SeasonBest[] = [];
 
   for (const [distance, distanceResults] of distanceMap.entries()) {
-    let bestResult: RaceResultRow | null = null;
+    let bestResult: DbRaceResultRow | null = null;
     let bestSeconds: number | null = null;
 
     for (const result of distanceResults) {
@@ -106,8 +116,8 @@ async function getBestTimeForDistance(
   distance: string,
   year: number
 ): Promise<number | null> {
-  const results = await getAthleteResults(athleteId);
-  
+  const results = await getAthleteResults(athleteId) as DbRaceResultRow[];
+
   const yearResults = results.filter((result) => {
     const resultDate = new Date(result.created_at);
     return resultDate.getFullYear() === year;
@@ -134,7 +144,7 @@ async function getBestTimeForDistance(
 /**
  * Extract distance from result metadata or event
  */
-function extractDistance(result: RaceResultRow): string | null {
+function extractDistance(result: DbRaceResultRow): string | null {
   // Try metadata first
   if (result.metadata && typeof result.metadata === 'object') {
     const metadata = result.metadata as Record<string, unknown>;
@@ -190,10 +200,10 @@ function parseDistance(distance: string): number {
 export async function getSeasonBestBadges(athleteId: string): Promise<Badge[]> {
   const badges: Badge[] = [];
   const currentYear = new Date().getFullYear();
-  
+
   // Get season bests for current year
   const seasonBests = await calculateSeasonBests(athleteId, currentYear);
-  
+
   for (const sb of seasonBests) {
     if (sb.improved) {
       badges.push({
@@ -209,7 +219,7 @@ export async function getSeasonBestBadges(athleteId: string): Promise<Badge[]> {
   }
 
   // Get personal bests (all-time)
-  const allResults = await getAthleteResults(athleteId);
+  const allResults = await getAthleteResults(athleteId) as DbRaceResultRow[];
   const pbMap = new Map<string, { time: string; date: string }>();
 
   for (const result of allResults) {
@@ -223,7 +233,7 @@ export async function getSeasonBestBadges(athleteId: string): Promise<Badge[]> {
     } else {
       const currentSeconds = parseTimeToSeconds(currentPB.time);
       const resultSeconds = parseTimeToSeconds(result.finish_time);
-      
+
       if (currentSeconds !== null && resultSeconds !== null && resultSeconds < currentSeconds) {
         pbMap.set(distance, { time: result.finish_time, date: result.created_at });
       }

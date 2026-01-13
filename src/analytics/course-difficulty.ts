@@ -93,6 +93,11 @@ export async function calculateCourseDifficulty(eventId: string): Promise<Course
   };
 }
 
+interface ResultWithEvent {
+  finish_time: string | null;
+  event_id: string;
+}
+
 /**
  * Get course-adjusted time for a result
  */
@@ -104,7 +109,7 @@ export async function getCourseAdjustedTime(resultId: string): Promise<string | 
     .eq('id', resultId)
     .single();
 
-  const typedResult = result as { finish_time: string | null; event_id: string } | null;
+  const typedResult = result as ResultWithEvent | null;
 
   if (!typedResult || !typedResult.finish_time || !typedResult.event_id) {
     return null;

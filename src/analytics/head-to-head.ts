@@ -1,5 +1,14 @@
-import { getAthleteResults, type RaceResultRow } from '../storage/supabase.js';
+import { getAthleteResults } from '../storage/supabase.js';
 import { parseTimeToSeconds } from './age-grading.js';
+
+// Database row type (snake_case) - matches Supabase schema
+interface DbRaceResultRow {
+  id: string;
+  event_id: string;
+  athlete_id: string | null;
+  finish_time: string | null;
+  created_at: string;
+}
 
 export interface H2HStats {
   athlete1Id: string;
@@ -27,12 +36,12 @@ export async function calculateHeadToHead(
   athlete1Id: string,
   athlete2Id: string
 ): Promise<H2HStats> {
-  const results1 = await getAthleteResults(athlete1Id);
-  const results2 = await getAthleteResults(athlete2Id);
+  const results1 = await getAthleteResults(athlete1Id) as DbRaceResultRow[];
+  const results2 = await getAthleteResults(athlete2Id) as DbRaceResultRow[];
 
   // Find common events (races where both athletes participated)
-  const events1 = new Map<string, RaceResultRow>();
-  const events2 = new Map<string, RaceResultRow>();
+  const events1 = new Map<string, DbRaceResultRow>();
+  const events2 = new Map<string, DbRaceResultRow>();
 
   for (const result of results1) {
     if (result.finish_time && result.event_id) {

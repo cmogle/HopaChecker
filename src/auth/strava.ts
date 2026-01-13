@@ -251,11 +251,17 @@ export async function getStravaLink(athleteId: string): Promise<{
     throw new Error(`Failed to get Strava link: ${error.message}`);
   }
 
+  const typedData = data as {
+    access_token: string;
+    refresh_token: string | null;
+    expires_at: string | null;
+    strava_athlete_id: string;
+  };
   return {
-    accessToken: (data as any).access_token,
-    refreshToken: (data as any).refresh_token,
-    expiresAt: (data as any).expires_at,
-    stravaAthleteId: (data as any).strava_athlete_id,
+    accessToken: typedData.access_token,
+    refreshToken: typedData.refresh_token,
+    expiresAt: typedData.expires_at,
+    stravaAthleteId: typedData.strava_athlete_id,
   };
 }
 
