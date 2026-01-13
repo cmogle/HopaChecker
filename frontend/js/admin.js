@@ -4,6 +4,8 @@ import { getCurrentUser, getSupabaseClient, isAuthenticated } from './auth.js';
 
 const API_BASE = window.API_BASE || '/api';
 let currentDuplicateCheck = null;
+let currentEventSource = null; // For SSE progress streaming
+let currentAnalysis = null; // For pre-scrape URL analysis
 
 /**
  * Get auth token for API calls
@@ -89,6 +91,20 @@ export async function verifyAdminAccess() {
 export function initAdminPage() {
   loadEventsSummary();
   loadFailedJobs();
+
+  // Add URL input listener for auto-analysis
+  const urlInput = document.getElementById('scrape-url');
+  if (urlInput) {
+    let debounceTimer;
+    urlInput.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (urlInput.value.trim().length > 10) {
+          analyzeUrl();
+        }
+      }, 500);
+    });
+  }
 }
 
 /**
@@ -156,6 +172,16 @@ export async function showEventDetails(eventId) {
 
     let html = `
       <h2 class="modal-title">${escapeHtml(event.event_name)}</h2>
+
+      <div class="event-actions">
+        <button class="btn-secondary btn-small" onclick="showDataQuality('${event.id}')">
+          <span class="btn-icon">&#128202;</span> Data Quality
+        </button>
+        <button class="btn-secondary btn-small" onclick="findLinkedEvents('${event.id}')">
+          <span class="btn-icon">&#128279;</span> Find Duplicates
+        </button>
+      </div>
+
       <div class="event-details">
         <div class="detail-row">
           <strong>Date:</strong> ${date}
@@ -178,9 +204,10 @@ export async function showEventDetails(eventId) {
       <div class="schema-info">
         <p><strong>Fields Populated:</strong></p>
         <ul class="schema-list">
-          ${schema.fields.map(f => 
-            `<li>${escapeHtml(f.name)}: ${f.populated}/${f.total} (${f.percentage}%)</li>`
-          ).join('')}
+          ${schema.fields.map(f => {
+            const barClass = f.percentage >= 80 ? 'good' : f.percentage >= 50 ? 'warning' : 'poor';
+            return `<li class="field-${barClass}">${escapeHtml(f.name)}: ${f.populated}/${f.total} (${f.percentage}%)</li>`;
+          }).join('')}
         </ul>
         ${schema.distances.length > 0 ? `
           <p style="margin-top: 1rem;"><strong>Distances:</strong> ${schema.distances.join(', ')}</p>
@@ -234,11 +261,128 @@ export function closeEventDetailsModal(event) {
 }
 
 /**
+ * Analyze URL before scraping
+ */
+export async function analyzeUrl() {
+  const urlInput = document.getElementById('scrape-url');
+  const analysisDiv = document.getElementById('url-analysis') || createAnalysisDiv();
+
+  if (!urlInput) return;
+
+  const url = urlInput.value.trim();
+  if (!url) {
+    analysisDiv.innerHTML = '';
+    currentAnalysis = null;
+    return;
+  }
+
+  try {
+    analysisDiv.innerHTML = '<div class="analysis-loading"><span class="spinner"></span> Analyzing URL...</div>';
+
+    const data = await apiCall('/admin/scrape/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ eventUrl: url }),
+    });
+
+    currentAnalysis = data;
+
+    if (!data.isValid) {
+      analysisDiv.innerHTML = `
+        <div class="analysis-result analysis-result--error">
+          <div class="analysis-header">
+            <span class="analysis-icon">&#10005;</span>
+            <strong>URL Not Supported</strong>
+          </div>
+          <ul class="analysis-issues">
+            ${data.issues.map(i => `<li>${escapeHtml(i)}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+      return;
+    }
+
+    const browserIndicator = data.requiresHeadlessBrowser
+      ? '<span class="badge badge--warning">Requires Browser</span>'
+      : '<span class="badge badge--success">Fast Mode</span>';
+
+    analysisDiv.innerHTML = `
+      <div class="analysis-result analysis-result--success">
+        <div class="analysis-header">
+          <span class="analysis-icon">&#10003;</span>
+          <strong>URL Analyzed</strong>
+          ${browserIndicator}
+        </div>
+        <div class="analysis-details">
+          <div class="analysis-row">
+            <span class="analysis-label">Organiser:</span>
+            <span class="analysis-value">${escapeHtml(data.detectedOrganiser)}</span>
+          </div>
+          ${data.eventName ? `
+            <div class="analysis-row">
+              <span class="analysis-label">Event:</span>
+              <span class="analysis-value">${escapeHtml(data.eventName)}</span>
+            </div>
+          ` : ''}
+          ${data.eventDate ? `
+            <div class="analysis-row">
+              <span class="analysis-label">Date:</span>
+              <span class="analysis-value">${escapeHtml(data.eventDate)}</span>
+            </div>
+          ` : ''}
+          ${data.estimatedDistances.length > 0 ? `
+            <div class="analysis-row">
+              <span class="analysis-label">Distances:</span>
+              <span class="analysis-value">${data.estimatedDistances.join(', ')}</span>
+            </div>
+          ` : ''}
+          ${data.estimatedResultCount ? `
+            <div class="analysis-row">
+              <span class="analysis-label">Est. Results:</span>
+              <span class="analysis-value">~${data.estimatedResultCount}</span>
+            </div>
+          ` : ''}
+        </div>
+        ${data.suggestions && data.suggestions.length > 0 ? `
+          <div class="analysis-suggestions">
+            <strong>Suggestions:</strong>
+            <ul>${data.suggestions.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  } catch (error) {
+    console.error('Error analyzing URL:', error);
+    analysisDiv.innerHTML = `
+      <div class="analysis-result analysis-result--warning">
+        <div class="analysis-header">
+          <span class="analysis-icon">&#9888;</span>
+          Analysis unavailable
+        </div>
+        <p>Will analyze during scrape</p>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Create analysis div if it doesn't exist
+ */
+function createAnalysisDiv() {
+  const formGroup = document.querySelector('.admin-form .form-group');
+  if (!formGroup) return document.createElement('div');
+
+  const div = document.createElement('div');
+  div.id = 'url-analysis';
+  div.className = 'url-analysis-container';
+  formGroup.appendChild(div);
+  return div;
+}
+
+/**
  * Check for duplicate event
  */
 export async function checkDuplicate() {
   const urlInput = document.getElementById('scrape-url');
-  const organiserInput = document.getElementById('scrape-organiser');
   const statusDiv = document.getElementById('scrape-status');
 
   if (!urlInput || !statusDiv) return;
@@ -249,16 +393,16 @@ export async function checkDuplicate() {
     return;
   }
 
-  try {
-    statusDiv.innerHTML = '<div class="loading-message">Checking for duplicates...</div>';
-
-    // First, we need to scrape the event to get name and date
-    // For now, we'll use the check-duplicate endpoint which requires name and date
-    // We'll need to scrape first or get this from the scraper
-    statusDiv.innerHTML = '<div class="info-message">Note: Duplicate check will be performed automatically when scraping starts.</div>';
-  } catch (error) {
-    console.error('Error checking duplicate:', error);
-    statusDiv.innerHTML = `<div class="error-message">Error: ${escapeHtml(error.message)}</div>`;
+  // Use the analysis if available
+  if (currentAnalysis && currentAnalysis.isValid) {
+    statusDiv.innerHTML = `
+      <div class="info-message">
+        Ready to scrape <strong>${escapeHtml(currentAnalysis.detectedOrganiser)}</strong> event.
+        ${currentAnalysis.requiresHeadlessBrowser ? 'This will use the browser for JavaScript rendering.' : ''}
+      </div>
+    `;
+  } else {
+    statusDiv.innerHTML = '<div class="info-message">Duplicate check will be performed when scraping starts.</div>';
   }
 }
 
@@ -269,14 +413,16 @@ function showScrapeProgress(stage, message, details = {}) {
   const statusDiv = document.getElementById('scrape-status');
   if (!statusDiv) return;
 
-  const stages = ['initiated', 'connecting', 'scraping', 'saving', 'complete'];
+  const stages = ['initializing', 'connecting', 'detecting_pages', 'scraping', 'validating', 'saving', 'complete'];
   const stageIndex = stages.indexOf(stage);
-  const progressPercent = stage === 'complete' ? 100 : Math.max(10, (stageIndex / (stages.length - 1)) * 90);
+  const progressPercent = stage === 'complete' ? 100 : Math.max(5, (stageIndex / (stages.length - 1)) * 95);
 
   const stageLabels = {
-    initiated: 'Initiated',
+    initializing: 'Initializing',
     connecting: 'Connecting',
+    detecting_pages: 'Detecting Pages',
     scraping: 'Scraping',
+    validating: 'Validating',
     saving: 'Saving',
     complete: 'Complete',
     error: 'Error'
@@ -305,7 +451,91 @@ function showScrapeProgress(stage, message, details = {}) {
 }
 
 /**
- * Start scraping
+ * Show SSE scrape progress (enhanced version with more details)
+ */
+function showScrapeProgressSSE(progress) {
+  const statusDiv = document.getElementById('scrape-status');
+  if (!statusDiv) return;
+
+  const stages = ['initializing', 'connecting', 'detecting_pages', 'scraping', 'validating', 'saving', 'complete'];
+  const stageIndex = stages.indexOf(progress.stage);
+
+  // Calculate progress percentage
+  let progressPercent;
+  if (progress.stage === 'complete') {
+    progressPercent = 100;
+  } else if (progress.stage === 'scraping' && progress.totalPages) {
+    // More granular progress during scraping
+    const scrapeProgress = progress.currentPage / progress.totalPages;
+    progressPercent = 30 + (scrapeProgress * 50); // Scraping is 30-80%
+  } else if (progress.percentComplete) {
+    progressPercent = progress.percentComplete;
+  } else {
+    progressPercent = Math.max(5, (stageIndex / (stages.length - 1)) * 95);
+  }
+
+  const stageLabels = {
+    initializing: 'Initializing',
+    connecting: 'Connecting',
+    detecting_pages: 'Detecting Pages',
+    scraping: 'Scraping',
+    validating: 'Validating',
+    saving: 'Saving',
+    complete: 'Complete',
+    error: 'Error'
+  };
+
+  const isError = progress.stage === 'error';
+  const isComplete = progress.stage === 'complete';
+
+  // Build page progress indicator
+  let pageProgress = '';
+  if (progress.currentPage && progress.totalPages) {
+    pageProgress = `<div class="scrape-progress__pages">Page ${progress.currentPage} of ${progress.totalPages}</div>`;
+  }
+
+  // Build validation info
+  let validationInfo = '';
+  if (progress.validation) {
+    const validClass = progress.validation.isValid ? 'valid' : 'invalid';
+    validationInfo = `
+      <div class="scrape-progress__validation ${validClass}">
+        <span>Quality Score: <strong>${progress.validation.completenessScore}%</strong></span>
+        ${progress.validation.isValid ? '<span class="badge badge--success">Valid</span>' : '<span class="badge badge--warning">Review Needed</span>'}
+      </div>
+    `;
+  }
+
+  // Build distance indicator
+  let distanceInfo = '';
+  if (progress.currentDistance) {
+    distanceInfo = `<div class="scrape-progress__distance">Distance: ${escapeHtml(progress.currentDistance)}</div>`;
+  }
+
+  statusDiv.innerHTML = `
+    <div class="scrape-progress ${isError ? 'scrape-progress--error' : ''} ${isComplete ? 'scrape-progress--complete' : ''}">
+      <div class="scrape-progress__header">
+        <span class="scrape-progress__stage">${stageLabels[progress.stage] || progress.stage}</span>
+        ${!isError && !isComplete ? '<span class="scrape-progress__spinner"></span>' : ''}
+        ${isComplete ? '<span class="scrape-progress__check">&#10003;</span>' : ''}
+        ${isError ? '<span class="scrape-progress__x">&#10005;</span>' : ''}
+      </div>
+      <div class="scrape-progress__bar-container">
+        <div class="scrape-progress__bar" style="width: ${progressPercent}%"></div>
+      </div>
+      <div class="scrape-progress__message">${escapeHtml(progress.message)}</div>
+      ${pageProgress}
+      ${distanceInfo}
+      <div class="scrape-progress__results">Results scraped: <strong>${progress.resultsScraped || 0}</strong></div>
+      ${validationInfo}
+      ${progress.eventId ? `<div class="scrape-progress__eventid">Event ID: ${progress.eventId}</div>` : ''}
+      ${!isError && !isComplete ? '<div class="scrape-progress__hint">Live progress - you can navigate away</div>' : ''}
+    </div>
+  `;
+}
+
+/**
+ * Start scraping with SSE progress streaming
  */
 export async function startScrape() {
   const urlInput = document.getElementById('scrape-url');
@@ -321,8 +551,10 @@ export async function startScrape() {
     return;
   }
 
-  const organiser = organiserInput?.value.trim() || undefined;
+  const organiser = organiserInput?.value.trim() ||
+    (currentAnalysis?.detectedOrganiser !== 'unknown' ? currentAnalysis?.detectedOrganiser : undefined);
   const overwrite = currentDuplicateCheck?.isDuplicate || false;
+  const useHeadlessBrowser = currentAnalysis?.requiresHeadlessBrowser || false;
 
   // Disable button during scrape
   if (startButton) {
@@ -330,53 +562,103 @@ export async function startScrape() {
     startButton.textContent = 'Scraping...';
   }
 
+  // Close any existing SSE connection
+  if (currentEventSource) {
+    currentEventSource.close();
+    currentEventSource = null;
+  }
+
   try {
     // Stage 1: Initiated
-    showScrapeProgress('initiated', 'Preparing to scrape...');
+    showScrapeProgress('initializing', 'Preparing to scrape...', { stage: 'initializing' });
 
-    // Small delay to show initiated state
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    // Stage 2: Connecting
-    showScrapeProgress('connecting', `Connecting to ${new URL(url).hostname}...`);
-
-    const data = await apiCall('/admin/scrape', {
+    // Start the scrape job
+    const data = await apiCall('/admin/scrape/start', {
       method: 'POST',
       body: JSON.stringify({
         eventUrl: url,
         organiser,
         overwrite,
+        useHeadlessBrowser,
       }),
     });
 
-    if (data.success) {
-      // Stage 5: Complete
-      showScrapeProgress('complete', 'Scrape completed successfully!', {
-        jobId: data.jobId,
-        resultsCount: data.resultsCount || 0
-      });
-
-      // Clear form
-      urlInput.value = '';
-      if (organiserInput) organiserInput.value = '';
-      currentDuplicateCheck = null;
-
-      // Reload events
-      setTimeout(() => {
-        loadEventsSummary();
-        loadFailedJobs();
-      }, 2000);
-    } else {
-      throw new Error(data.error || 'Scrape failed');
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to start scrape');
     }
+
+    const jobId = data.jobId;
+
+    // Connect to SSE for real-time progress
+    const token = await getAuthToken();
+    const sseUrl = `${API_BASE}/admin/scrape/${jobId}/progress`;
+
+    currentEventSource = new EventSource(sseUrl);
+
+    currentEventSource.onmessage = (event) => {
+      try {
+        const progress = JSON.parse(event.data);
+        showScrapeProgressSSE(progress);
+
+        // Handle completion
+        if (progress.stage === 'complete' || progress.stage === 'error') {
+          currentEventSource.close();
+          currentEventSource = null;
+
+          if (progress.stage === 'complete') {
+            // Clear form
+            urlInput.value = '';
+            if (organiserInput) organiserInput.value = '';
+            currentDuplicateCheck = null;
+            currentAnalysis = null;
+
+            // Clear analysis div
+            const analysisDiv = document.getElementById('url-analysis');
+            if (analysisDiv) analysisDiv.innerHTML = '';
+
+            // Reload events
+            setTimeout(() => {
+              loadEventsSummary();
+              loadFailedJobs();
+            }, 2000);
+          }
+
+          // Re-enable button
+          if (startButton) {
+            startButton.disabled = false;
+            startButton.textContent = 'Start Scrape';
+          }
+        }
+      } catch (e) {
+        console.error('Error parsing SSE message:', e);
+      }
+    };
+
+    currentEventSource.onerror = (error) => {
+      console.error('SSE error:', error);
+      currentEventSource.close();
+      currentEventSource = null;
+
+      // Re-enable button
+      if (startButton) {
+        startButton.disabled = false;
+        startButton.textContent = 'Start Scrape';
+      }
+
+      // Only show error if we haven't already shown complete
+      const currentStatus = statusDiv.querySelector('.scrape-progress--complete');
+      if (!currentStatus) {
+        showScrapeProgress('error', 'Connection lost. Scraping may continue in background.');
+      }
+    };
+
   } catch (error) {
     console.error('Error starting scrape:', error);
 
     // Check if it's a duplicate error
     if (error.message.includes('Duplicate') || error.message.includes('409')) {
-      // Try to parse the error response
       try {
-        const response = await fetch(`${API_BASE}/admin/scrape`, {
+        const response = await fetch(`${API_BASE}/admin/scrape/start`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -393,16 +675,16 @@ export async function startScrape() {
           const errorData = await response.json();
           currentDuplicateCheck = errorData;
           showDuplicateModal(errorData);
-          statusDiv.innerHTML = ''; // Clear progress on duplicate
+          statusDiv.innerHTML = '';
           return;
         }
       } catch (e) {
-        // Fall through to error message
+        // Fall through
       }
     }
 
     showScrapeProgress('error', error.message);
-  } finally {
+
     // Re-enable button
     if (startButton) {
       startButton.disabled = false;
@@ -556,11 +838,331 @@ export async function retryJobWithEdit(jobId) {
 }
 
 /**
+ * Show data quality report for an event
+ */
+export async function showDataQuality(eventId) {
+  const modal = document.getElementById('quality-modal') || createQualityModal();
+  const content = document.getElementById('quality-content');
+  if (!modal || !content) return;
+
+  try {
+    modal.classList.remove('hidden');
+    content.innerHTML = '<div class="loading">Loading data quality report...</div>';
+
+    const data = await apiCall(`/admin/events/${eventId}/quality`);
+    const report = data.report;
+
+    // Build field population chart
+    const fieldRows = Object.entries(report.fieldPopulation)
+      .sort((a, b) => b[1].percentage - a[1].percentage)
+      .map(([field, data]) => {
+        const barClass = data.percentage >= 80 ? 'bar--good' :
+                        data.percentage >= 50 ? 'bar--warning' : 'bar--poor';
+        return `
+          <div class="quality-field">
+            <span class="field-name">${escapeHtml(field)}</span>
+            <div class="field-bar-container">
+              <div class="field-bar ${barClass}" style="width: ${data.percentage}%"></div>
+            </div>
+            <span class="field-percent">${data.percentage}%</span>
+          </div>
+        `;
+      }).join('');
+
+    // Build sources list
+    const sourcesList = report.sources.length > 0 ? report.sources.map(s => `
+      <div class="source-item">
+        <span class="source-name">${escapeHtml(s.organiser)}</span>
+        <span class="source-count">${s.resultCount} results (${s.percentage}%)</span>
+      </div>
+    `).join('') : '<p>No source information available</p>';
+
+    content.innerHTML = `
+      <h2 class="modal-title">Data Quality Report</h2>
+
+      <div class="quality-summary">
+        <div class="quality-stat">
+          <span class="stat-value">${report.totalResults}</span>
+          <span class="stat-label">Total Results</span>
+        </div>
+        <div class="quality-stat">
+          <span class="stat-value">${report.checkpointCoverage.resultsWithCheckpoints}</span>
+          <span class="stat-label">With Checkpoints</span>
+        </div>
+        <div class="quality-stat">
+          <span class="stat-value">${report.checkpointCoverage.averageCheckpointsPerResult.toFixed(1)}</span>
+          <span class="stat-label">Avg Checkpoints</span>
+        </div>
+        <div class="quality-stat ${report.validationSummary.withErrorsCount > 0 ? 'stat--warning' : ''}">
+          <span class="stat-value">${report.validationSummary.withErrorsCount}</span>
+          <span class="stat-label">Validation Errors</span>
+        </div>
+      </div>
+
+      <h3>Field Population</h3>
+      <div class="quality-fields">
+        ${fieldRows}
+      </div>
+
+      <h3>Data Sources</h3>
+      <div class="quality-sources">
+        ${sourcesList}
+      </div>
+
+      ${report.validationSummary.withErrorsCount > 0 ? `
+        <h3>Validation Issues</h3>
+        <div class="quality-errors">
+          ${Object.entries(report.validationSummary.errorTypes).map(([field, count]) => `
+            <div class="error-type">
+              <span class="error-field">${escapeHtml(field)}</span>
+              <span class="error-count">${count} errors</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    `;
+  } catch (error) {
+    console.error('Error loading quality report:', error);
+    content.innerHTML = `<div class="error">Error: ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+/**
+ * Create quality modal if it doesn't exist
+ */
+function createQualityModal() {
+  const modal = document.createElement('div');
+  modal.id = 'quality-modal';
+  modal.className = 'modal hidden';
+  modal.onclick = (e) => { if (e.target === modal) closeQualityModal(); };
+  modal.innerHTML = `
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeQualityModal()">&times;</button>
+      <div id="quality-content"></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  return modal;
+}
+
+/**
+ * Close quality modal
+ */
+export function closeQualityModal(event) {
+  const modal = document.getElementById('quality-modal');
+  if (modal && (!event || event.target === modal)) {
+    modal.classList.add('hidden');
+  }
+}
+
+/**
+ * Find potential duplicate events for linking
+ */
+export async function findLinkedEvents(eventId) {
+  const modal = document.getElementById('link-modal') || createLinkModal();
+  const content = document.getElementById('link-content');
+  if (!modal || !content) return;
+
+  try {
+    modal.classList.remove('hidden');
+    content.innerHTML = '<div class="loading">Finding potential linked events...</div>';
+
+    const data = await apiCall('/admin/events/link', {
+      method: 'POST',
+      body: JSON.stringify({ primaryEventId: eventId, autoDetect: true }),
+    });
+
+    if (!data.candidates || data.candidates.length === 0) {
+      content.innerHTML = `
+        <h2 class="modal-title">Link Events</h2>
+        <p>No potential duplicates found for this event.</p>
+        <p class="hint">Events must share the same date to be considered duplicates.</p>
+      `;
+      return;
+    }
+
+    content.innerHTML = `
+      <h2 class="modal-title">Link Events</h2>
+      <p>Found ${data.candidates.length} potential match(es):</p>
+      <div class="link-candidates">
+        ${data.candidates.map(c => `
+          <div class="link-candidate">
+            <div class="candidate-info">
+              <strong>${escapeHtml(c.name)}</strong>
+              <span class="candidate-organiser">${escapeHtml(c.organiser)}</span>
+              <span class="candidate-date">${c.date}</span>
+            </div>
+            <button class="btn-primary btn-small" onclick="linkEvents('${eventId}', '${c.id}')">Link</button>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch (error) {
+    console.error('Error finding linked events:', error);
+    content.innerHTML = `<div class="error">Error: ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+/**
+ * Link two events
+ */
+export async function linkEvents(primaryEventId, linkedEventId) {
+  try {
+    await apiCall('/admin/events/link', {
+      method: 'POST',
+      body: JSON.stringify({ primaryEventId, linkedEventId }),
+    });
+
+    alert('Events linked successfully!');
+    closeLinkModal();
+
+    // Optionally offer to reconcile
+    if (confirm('Would you like to reconcile these events now?')) {
+      await reconcileEvents(primaryEventId, linkedEventId);
+    }
+  } catch (error) {
+    console.error('Error linking events:', error);
+    alert(`Error: ${error.message}`);
+  }
+}
+
+/**
+ * Reconcile two linked events
+ */
+export async function reconcileEvents(primaryEventId, secondaryEventId) {
+  const modal = document.getElementById('reconcile-modal') || createReconcileModal();
+  const content = document.getElementById('reconcile-content');
+  if (!modal || !content) return;
+
+  try {
+    modal.classList.remove('hidden');
+    content.innerHTML = '<div class="loading">Reconciling events... This may take a moment.</div>';
+
+    const data = await apiCall('/admin/events/reconcile', {
+      method: 'POST',
+      body: JSON.stringify({ primaryEventId, secondaryEventId }),
+    });
+
+    const rec = data.reconciliation;
+
+    content.innerHTML = `
+      <h2 class="modal-title">Reconciliation Results</h2>
+
+      <div class="reconcile-summary">
+        <div class="reconcile-stat">
+          <span class="stat-value">${rec.matchedCount}</span>
+          <span class="stat-label">Matched</span>
+        </div>
+        <div class="reconcile-stat">
+          <span class="stat-value">${rec.unmatchedFromPrimary}</span>
+          <span class="stat-label">Unmatched (Primary)</span>
+        </div>
+        <div class="reconcile-stat">
+          <span class="stat-value">${rec.unmatchedFromSecondary}</span>
+          <span class="stat-label">Unmatched (Secondary)</span>
+        </div>
+        <div class="reconcile-stat ${rec.conflictCount > 0 ? 'stat--warning' : ''}">
+          <span class="stat-value">${rec.conflictCount}</span>
+          <span class="stat-label">Conflicts</span>
+        </div>
+      </div>
+
+      <div class="reconcile-stats">
+        <p><strong>Match Rate:</strong> ${rec.statistics.matchRate.toFixed(1)}%</p>
+        ${rec.statistics.fieldsEnriched.length > 0 ? `
+          <p><strong>Fields Enriched:</strong> ${rec.statistics.fieldsEnriched.join(', ')}</p>
+        ` : ''}
+      </div>
+
+      ${data.sampleConflicts.length > 0 ? `
+        <h3>Sample Conflicts (Review Needed)</h3>
+        <div class="conflict-list">
+          ${data.sampleConflicts.slice(0, 5).map(c => `
+            <div class="conflict-item">
+              <span class="conflict-field">${escapeHtml(c.field)}</span>
+              <span class="conflict-values">
+                "${escapeHtml(String(c.valueA))}" vs "${escapeHtml(String(c.valueB))}"
+              </span>
+              <span class="conflict-resolution">${c.resolution}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      <div class="reconcile-report">
+        <h3>Full Report</h3>
+        <pre>${escapeHtml(data.report)}</pre>
+      </div>
+    `;
+  } catch (error) {
+    console.error('Error reconciling events:', error);
+    content.innerHTML = `<div class="error">Error: ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+/**
+ * Create link modal
+ */
+function createLinkModal() {
+  const modal = document.createElement('div');
+  modal.id = 'link-modal';
+  modal.className = 'modal hidden';
+  modal.onclick = (e) => { if (e.target === modal) closeLinkModal(); };
+  modal.innerHTML = `
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeLinkModal()">&times;</button>
+      <div id="link-content"></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  return modal;
+}
+
+/**
+ * Close link modal
+ */
+export function closeLinkModal(event) {
+  const modal = document.getElementById('link-modal');
+  if (modal && (!event || event.target === modal)) {
+    modal.classList.add('hidden');
+  }
+}
+
+/**
+ * Create reconcile modal
+ */
+function createReconcileModal() {
+  const modal = document.createElement('div');
+  modal.id = 'reconcile-modal';
+  modal.className = 'modal hidden';
+  modal.onclick = (e) => { if (e.target === modal) closeReconcileModal(); };
+  modal.innerHTML = `
+    <div class="modal-content modal-content--wide">
+      <button class="modal-close" onclick="closeReconcileModal()">&times;</button>
+      <div id="reconcile-content"></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  return modal;
+}
+
+/**
+ * Close reconcile modal
+ */
+export function closeReconcileModal(event) {
+  const modal = document.getElementById('reconcile-modal');
+  if (modal && (!event || event.target === modal)) {
+    modal.classList.add('hidden');
+  }
+}
+
+/**
  * Escape HTML
  */
 function escapeHtml(text) {
+  if (text === null || text === undefined) return '';
   const div = document.createElement('div');
-  div.textContent = text;
+  div.textContent = String(text);
   return div.innerHTML;
 }
 
@@ -569,9 +1171,17 @@ window.loadEventsSummary = loadEventsSummary;
 window.showEventDetails = showEventDetails;
 window.closeEventDetailsModal = closeEventDetailsModal;
 window.checkDuplicate = checkDuplicate;
+window.analyzeUrl = analyzeUrl;
 window.startScrape = startScrape;
 window.closeDuplicateModal = closeDuplicateModal;
 window.confirmOverwrite = confirmOverwrite;
 window.loadFailedJobs = loadFailedJobs;
 window.retryJob = retryJob;
 window.retryJobWithEdit = retryJobWithEdit;
+window.showDataQuality = showDataQuality;
+window.closeQualityModal = closeQualityModal;
+window.findLinkedEvents = findLinkedEvents;
+window.linkEvents = linkEvents;
+window.reconcileEvents = reconcileEvents;
+window.closeLinkModal = closeLinkModal;
+window.closeReconcileModal = closeReconcileModal;

@@ -158,6 +158,30 @@ function handleAuthStateChange(event, session) {
     currentUser = null;
     updateAuthUI(null);
     sessionStorage.removeItem('pendingAdminAccess');
+
+    // If user is viewing admin panel, redirect to landing page
+    const hash = window.location.hash;
+    const path = window.location.pathname;
+    const normalizedPath = path.replace(/\/$/, '') || '/';
+    const adminSection = document.getElementById('admin-section');
+
+    if (hash === '#/admin' || normalizedPath === '/admin' || (adminSection && !adminSection.classList.contains('hidden'))) {
+      console.log('[Auth] User signed out while viewing admin, redirecting to landing');
+      // Clear hash and redirect to landing
+      window.location.hash = '';
+      if (window.showLanding) {
+        window.showLanding();
+      } else {
+        // Fallback: manually hide admin and show landing sections
+        if (adminSection) adminSection.classList.add('hidden');
+        const hero = document.getElementById('hero');
+        const searchSection = document.getElementById('search');
+        const featuresSection = document.getElementById('features');
+        if (hero) hero.classList.remove('hidden');
+        if (searchSection) searchSection.classList.remove('hidden');
+        if (featuresSection) featuresSection.classList.remove('hidden');
+      }
+    }
   }
 }
 

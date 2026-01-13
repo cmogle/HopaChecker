@@ -2329,13 +2329,513 @@ app.post('/api/admin/monitoring/quick-check', requireAdmin, async (req, res) => 
   try {
     const { quickCheckEndpoint } = await import('./monitoring/endpoint-monitor.js');
     const { url } = req.body;
-    
+
     if (!url) {
       return res.status(400).json({ error: 'url is required' });
     }
-    
+
     const status = await quickCheckEndpoint(url);
     return res.json({ status });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// ============================================================================
+// ENHANCED SCRAPER API ENDPOINTS (URL Analysis, Progress SSE, Reconciliation)
+// ============================================================================
+
+// Store active scrape jobs for SSE progress streaming
+const activeScrapeJobs = new Map<string, {
+  progress: any;
+  clients: Set<express.Response>;
+}>();
+
+// Admin: Pre-scrape URL analysis
+app.post('/api/admin/scrape/analyze', requireAdminAuth, async (req, res) => {
+  try {
+    const { getScraperForUrl } = await import('./scraper/index.js');
+    const { eventUrl } = req.body;
+
+    if (!eventUrl) {
+      return res.status(400).json({ error: 'eventUrl is required' });
+    }
+
+    const scraper = getScraperForUrl(eventUrl);
+    if (!scraper) {
+      return res.json({
+        isValid: false,
+        detectedOrganiser: 'unknown',
+        issues: ['No scraper available for this URL'],
+        estimatedDistances: [],
+        requiresHeadlessBrowser: false,
+      });
+    }
+
+    // Check if scraper has analyzeUrl capability
+    if (scraper.analyzeUrl) {
+      const analysis = await scraper.analyzeUrl(eventUrl);
+      return res.json(analysis);
+    }
+
+    // Fallback for legacy scrapers without analyzeUrl
+    return res.json({
+      isValid: true,
+      detectedOrganiser: scraper.organiser,
+      estimatedDistances: [],
+      requiresHeadlessBrowser: scraper.capabilities?.supportsHeadlessBrowser || false,
+      issues: [],
+      suggestions: ['This scraper does not support pre-analysis. Results will be determined during scraping.'],
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Admin: SSE endpoint for real-time scrape progress
+app.get('/api/admin/scrape/:jobId/progress', requireAdminAuth, async (req, res) => {
+  const jobId = req.params.jobId;
+
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  // Add client to active job
+  let job = activeScrapeJobs.get(jobId);
+  if (!job) {
+    job = { progress: { stage: 'initializing', message: 'Waiting for scrape to start...' }, clients: new Set() };
+    activeScrapeJobs.set(jobId, job);
+  }
+
+  job.clients.add(res);
+
+  // Send initial state
+  res.write(`data: ${JSON.stringify(job.progress)}\n\n`);
+
+  // Send heartbeat every 30 seconds
+  const heartbeat = setInterval(() => {
+    res.write(`:heartbeat\n\n`);
+  }, 30000);
+
+  // Clean up on close
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    const j = activeScrapeJobs.get(jobId);
+    if (j) {
+      j.clients.delete(res);
+      if (j.clients.size === 0) {
+        // Keep job for 5 minutes after last client disconnects
+        setTimeout(() => {
+          const current = activeScrapeJobs.get(jobId);
+          if (current && current.clients.size === 0) {
+            activeScrapeJobs.delete(jobId);
+          }
+        }, 5 * 60 * 1000);
+      }
+    }
+  });
+});
+
+// Helper to broadcast progress to SSE clients
+function broadcastProgress(jobId: string, progress: any) {
+  const job = activeScrapeJobs.get(jobId);
+  if (job) {
+    job.progress = progress;
+    const message = `data: ${JSON.stringify(progress)}\n\n`;
+    for (const client of job.clients) {
+      client.write(message);
+    }
+  }
+}
+
+// Admin: Enhanced scrape with SSE progress
+app.post('/api/admin/scrape/start', requireAdminAuth, async (req, res) => {
+  try {
+    const { getScraperForUrl, getScraperByOrganiser } = await import('./scraper/index.js');
+    const { createScrapeJob, updateScrapeJob, saveEnhancedResults, saveEventDistances, saveEvent, checkEventDuplicate } = await import('./storage/supabase.js');
+    const { validateResults } = await import('./scraper/validation.js');
+    const { eventUrl, organiser, overwrite, useHeadlessBrowser } = req.body;
+
+    if (!eventUrl) {
+      return res.status(400).json({ error: 'eventUrl is required' });
+    }
+
+    // Create job
+    const job = await createScrapeJob({
+      organiser: organiser || 'unknown',
+      eventUrl,
+      startedBy: (req as any).user?.id,
+    });
+
+    // Initialize SSE tracking
+    activeScrapeJobs.set(job.id, {
+      progress: { stage: 'initializing', message: 'Starting scrape...', resultsScraped: 0 },
+      clients: new Set(),
+    });
+
+    // Start scrape asynchronously
+    (async () => {
+      try {
+        const scraper = organiser
+          ? getScraperByOrganiser(organiser)
+          : getScraperForUrl(eventUrl);
+
+        if (!scraper) {
+          broadcastProgress(job.id, {
+            stage: 'error',
+            message: `No scraper available for URL: ${eventUrl}`,
+          });
+          await updateScrapeJob(job.id, { status: 'failed', errorMessage: 'No scraper available' });
+          return;
+        }
+
+        await updateScrapeJob(job.id, { status: 'running' });
+        broadcastProgress(job.id, { stage: 'connecting', message: 'Connecting to event page...', resultsScraped: 0 });
+
+        // Create progress callback
+        const onProgress = (progress: any) => {
+          broadcastProgress(job.id, progress);
+        };
+
+        // Scrape with progress
+        const scrapedData = await scraper.scrapeEvent(eventUrl, { useHeadlessBrowser }, onProgress);
+
+        // Check for duplicate
+        const duplicate = await checkEventDuplicate(scrapedData.event.eventName, scrapedData.event.eventDate);
+        if (duplicate && !overwrite) {
+          broadcastProgress(job.id, {
+            stage: 'error',
+            message: 'Duplicate event found. Use overwrite=true to proceed.',
+          });
+          await updateScrapeJob(job.id, { status: 'failed', errorMessage: 'Duplicate event found' });
+          return;
+        }
+
+        broadcastProgress(job.id, { stage: 'validating', message: 'Validating results...', resultsScraped: scrapedData.results.length });
+
+        // Handle both legacy and enhanced result formats
+        const eventData = scrapedData.event as any;
+        const hasDistances = 'distances' in eventData && Array.isArray(eventData.distances);
+        const distance = hasDistances
+          ? eventData.distances[0]?.distanceName
+          : eventData.distance || 'Unknown';
+
+        // Convert legacy results to enhanced format if needed
+        const enhancedResults = scrapedData.results.map((r: any) => ({
+          position: r.position,
+          bibNumber: r.bibNumber || '',
+          name: r.name,
+          gender: r.gender || '',
+          category: r.category || '',
+          finishTime: r.finishTime || '',
+          gunTime: r.gunTime,
+          chipTime: r.chipTime,
+          pace: r.pace,
+          genderPosition: r.genderPosition,
+          categoryPosition: r.categoryPosition,
+          country: r.country,
+          club: r.club,
+          age: r.age,
+          status: r.status || 'finished',
+          timeBehind: r.timeBehind,
+          checkpoints: r.checkpoints || [],
+          // Legacy time fields
+          time5km: r.time5km,
+          time10km: r.time10km,
+          time13km: r.time13km,
+          time15km: r.time15km,
+        }));
+
+        // Validate results using enhanced format
+        const enhancedScrapedData = {
+          event: {
+            ...eventData,
+            distances: hasDistances ? eventData.distances : [],
+          },
+          results: enhancedResults,
+          scrapeMetadata: scrapedData.scrapeMetadata || {
+            startedAt: new Date(),
+            completedAt: new Date(),
+            totalPages: 1,
+            totalResults: enhancedResults.length,
+            usedHeadlessBrowser: false,
+            errors: [],
+            warnings: [],
+          },
+        };
+
+        const validation = validateResults(enhancedScrapedData);
+
+        broadcastProgress(job.id, {
+          stage: 'saving',
+          message: 'Saving to database...',
+          resultsScraped: scrapedData.results.length,
+          validation: { isValid: validation.isValid, completenessScore: validation.completenessScore },
+        });
+
+        // Save event
+        const eventId = await saveEvent({
+          organiser: scrapedData.event.organiser,
+          eventName: scrapedData.event.eventName,
+          eventDate: scrapedData.event.eventDate,
+          eventUrl: scrapedData.event.eventUrl,
+          location: scrapedData.event.location,
+          distance,
+          metadata: scrapedData.event.metadata,
+        });
+
+        // Save distances if available
+        if (hasDistances && eventData.distances.length > 0) {
+          await saveEventDistances(eventId, eventData.distances);
+        }
+
+        // Save results
+        const { savedCount } = await saveEnhancedResults(eventId, enhancedResults, {
+          distance,
+          sourceOrganiser: scraper.organiser,
+          sourceUrl: eventUrl,
+        });
+
+        await updateScrapeJob(job.id, { status: 'completed', resultsCount: savedCount });
+
+        broadcastProgress(job.id, {
+          stage: 'complete',
+          message: `Successfully scraped ${savedCount} results`,
+          resultsScraped: savedCount,
+          eventId,
+          validation: { isValid: validation.isValid, completenessScore: validation.completenessScore },
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        broadcastProgress(job.id, { stage: 'error', message: errorMessage });
+        await updateScrapeJob(job.id, { status: 'failed', errorMessage });
+      }
+    })();
+
+    return res.json({
+      success: true,
+      jobId: job.id,
+      message: 'Scrape started. Use SSE endpoint for progress updates.',
+      sseUrl: `/api/admin/scrape/${job.id}/progress`,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Admin: Get data quality report for an event
+app.get('/api/admin/events/:id/quality', requireAdminAuth, async (req, res) => {
+  try {
+    const { getDataQualityReport } = await import('./storage/supabase.js');
+    const eventId = req.params.id;
+
+    const report = await getDataQualityReport(eventId);
+    return res.json({ report });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Admin: Link events for reconciliation
+app.post('/api/admin/events/link', requireAdminAuth, async (req, res) => {
+  try {
+    const { linkEvents, getEventById, findPotentialDuplicateEvents } = await import('./storage/supabase.js');
+    const { primaryEventId, linkedEventId, autoDetect } = req.body;
+
+    if (autoDetect) {
+      // Auto-detect potential duplicates
+      const event = await getEventById(primaryEventId);
+      if (!event) {
+        return res.status(404).json({ error: 'Primary event not found' });
+      }
+
+      const potentials = await findPotentialDuplicateEvents(event.event_date, event.event_name);
+      const candidates = potentials.filter(e => e.id !== primaryEventId);
+
+      return res.json({
+        success: true,
+        candidates: candidates.map(e => ({
+          id: e.id,
+          name: e.event_name,
+          organiser: e.organiser,
+          date: e.event_date,
+        })),
+      });
+    }
+
+    if (!primaryEventId || !linkedEventId) {
+      return res.status(400).json({ error: 'primaryEventId and linkedEventId are required' });
+    }
+
+    await linkEvents(primaryEventId, linkedEventId, {
+      linkedBy: (req as any).user?.id,
+    });
+
+    return res.json({ success: true });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Admin: Get linked events
+app.get('/api/admin/events/:id/links', requireAdminAuth, async (req, res) => {
+  try {
+    const { getLinkedEvents, getEventById } = await import('./storage/supabase.js');
+    const eventId = req.params.id;
+
+    const links = await getLinkedEvents(eventId);
+
+    // Fetch event details for each link
+    const linksWithDetails = await Promise.all(
+      links.map(async (link) => {
+        const linkedId = link.primary_event_id === eventId ? link.linked_event_id : link.primary_event_id;
+        const event = await getEventById(linkedId);
+        return {
+          ...link,
+          linkedEvent: event,
+        };
+      })
+    );
+
+    return res.json({ links: linksWithDetails });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Admin: Reconcile linked events
+app.post('/api/admin/events/reconcile', requireAdminAuth, async (req, res) => {
+  try {
+    const { getEnhancedResults, getEventById } = await import('./storage/supabase.js');
+    const { reconcileResults, generateReconciliationReport } = await import('./scraper/reconciliation.js');
+    const { primaryEventId, secondaryEventId, autoMergeThreshold } = req.body;
+
+    if (!primaryEventId || !secondaryEventId) {
+      return res.status(400).json({ error: 'primaryEventId and secondaryEventId are required' });
+    }
+
+    // Get events
+    const [primaryEvent, secondaryEvent] = await Promise.all([
+      getEventById(primaryEventId),
+      getEventById(secondaryEventId),
+    ]);
+
+    if (!primaryEvent || !secondaryEvent) {
+      return res.status(404).json({ error: 'One or both events not found' });
+    }
+
+    // Get results with checkpoints
+    const [primaryResults, secondaryResults] = await Promise.all([
+      getEnhancedResults(primaryEventId, { includeCheckpoints: true }),
+      getEnhancedResults(secondaryEventId, { includeCheckpoints: true }),
+    ]);
+
+    // Convert to EnhancedRaceResult format for reconciliation
+    const mapToEnhanced = (r: any) => ({
+      position: r.position,
+      bibNumber: r.bib_number || '',
+      name: r.name,
+      gender: r.gender || '',
+      category: r.category || '',
+      finishTime: r.finish_time || '',
+      gunTime: r.gun_time || undefined,
+      chipTime: r.chip_time || undefined,
+      pace: r.pace || undefined,
+      genderPosition: r.gender_position || undefined,
+      categoryPosition: r.category_position || undefined,
+      country: r.country || undefined,
+      club: r.club || undefined,
+      age: r.age || undefined,
+      status: (r.status || 'finished') as 'finished' | 'dnf' | 'dns' | 'dq',
+      timeBehind: r.time_behind || undefined,
+      checkpoints: (r.checkpoints || []).map((cp: any) => ({
+        checkpointType: cp.checkpoint_type as 'distance' | 'transition' | 'discipline',
+        checkpointName: cp.checkpoint_name,
+        checkpointOrder: cp.checkpoint_order,
+        splitTime: cp.split_time || undefined,
+        cumulativeTime: cp.cumulative_time || undefined,
+        pace: cp.pace || undefined,
+      })),
+    });
+
+    const result = reconcileResults(
+      primaryResults.map(mapToEnhanced),
+      secondaryResults.map(mapToEnhanced),
+      {
+        sourceAName: primaryEvent.organiser,
+        sourceBName: secondaryEvent.organiser,
+        autoMergeThreshold: autoMergeThreshold || 85,
+      }
+    );
+
+    const report = generateReconciliationReport(result);
+
+    return res.json({
+      success: true,
+      reconciliation: {
+        matchedCount: result.matchedCount,
+        unmatchedFromPrimary: result.unmatchedFromA,
+        unmatchedFromSecondary: result.unmatchedFromB,
+        conflictCount: result.conflicts.length,
+        statistics: result.statistics,
+      },
+      report,
+      // Only return first few conflicts for preview
+      sampleConflicts: result.conflicts.slice(0, 10),
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Admin: Get enhanced results with checkpoints
+app.get('/api/admin/events/:id/results', requireAdminAuth, async (req, res) => {
+  try {
+    const { getEnhancedResults } = await import('./storage/supabase.js');
+    const eventId = req.params.id;
+    const includeCheckpoints = req.query.checkpoints !== 'false';
+    const includeSource = req.query.source === 'true';
+
+    const results = await getEnhancedResults(eventId, { includeCheckpoints, includeSource });
+    return res.json({ results, total: results.length });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Admin: Get event distances
+app.get('/api/admin/events/:id/distances', requireAdminAuth, async (req, res) => {
+  try {
+    const { getEventDistances } = await import('./storage/supabase.js');
+    const eventId = req.params.id;
+
+    const distances = await getEventDistances(eventId);
+    return res.json({ distances });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Admin: Get results with validation errors
+app.get('/api/admin/events/:id/validation-errors', requireAdminAuth, async (req, res) => {
+  try {
+    const { getResultsWithValidationErrors } = await import('./storage/supabase.js');
+    const eventId = req.params.id;
+
+    const results = await getResultsWithValidationErrors(eventId);
+    return res.json({ results, count: results.length });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return res.status(500).json({ error: errorMessage });
