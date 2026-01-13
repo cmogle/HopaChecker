@@ -29,6 +29,9 @@
     const envSupabaseUrl = '%SUPABASE_URL%';
     if (envSupabaseUrl && envSupabaseUrl !== '%SUPABASE_URL%') {
       window.SUPABASE_URL = envSupabaseUrl;
+    } else {
+      // Production fallback - Supabase URL is not sensitive
+      window.SUPABASE_URL = 'https://fazdbecnxwgkvbxwlrfn.supabase.co';
     }
   }
 
@@ -38,6 +41,12 @@
     const envSupabaseKey = '%SUPABASE_ANON_KEY%';
     if (envSupabaseKey && envSupabaseKey !== '%SUPABASE_ANON_KEY%') {
       window.SUPABASE_ANON_KEY = envSupabaseKey;
+    } else {
+      // Production fallback - anon key is designed for client-side use (safe to expose)
+      window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhemRiZWNueHdna3ZieHdscmZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgyMDg3NTksImV4cCI6MjA4Mzc4NDc1OX0.tmMXTCajrrv2GhPwOhxB_QSu00nIJ0eBExuNRcDPong';
     }
   }
+
+  // Admin email configuration (centralized)
+  window.ADMIN_EMAIL = window.ADMIN_EMAIL || 'conorogle@gmail.com';
 })();

@@ -125,6 +125,30 @@ app.get('/api/status', async (req, res) => {
   });
 });
 
+// API: Platform statistics (public)
+app.get('/api/stats/platform', async (_req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+
+    // Get counts from database
+    const [athletesResult, resultsResult, eventsResult] = await Promise.all([
+      supabase.from('athletes').select('id', { count: 'exact', head: true }),
+      supabase.from('race_results').select('id', { count: 'exact', head: true }),
+      supabase.from('events').select('id', { count: 'exact', head: true }),
+    ]);
+
+    res.json({
+      athleteCount: athletesResult.count || 0,
+      raceCount: resultsResult.count || 0,
+      eventCount: eventsResult.count || 0,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Error fetching platform stats:', error);
+    res.status(500).json({ error: 'Failed to fetch platform statistics' });
+  }
+});
+
 // API: Search results
 app.get('/api/search', searchLimiter, async (req, res) => {
   // Input validation

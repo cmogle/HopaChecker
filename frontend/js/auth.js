@@ -68,7 +68,7 @@ function handleAuthStateChange(event, session) {
     // If user was trying to access /admin, redirect there
     if (pendingAdminAccess === 'true' || hash === '#/admin' || normalizedPath === '/admin') {
       sessionStorage.removeItem('pendingAdminAccess');
-      // Small delay to ensure UI is updated
+      // Delay to ensure session is fully established and UI is updated
       setTimeout(() => {
         if (window.showAdminPage) {
           window.showAdminPage();
@@ -77,7 +77,7 @@ function handleAuthStateChange(event, session) {
           // Force a route update
           window.dispatchEvent(new HashChangeEvent('hashchange'));
         }
-      }, 200);
+      }, 300);
     }
   } else if (event === 'SIGNED_OUT') {
     currentUser = null;
@@ -108,8 +108,9 @@ function updateAuthUI(user) {
       userName.textContent = name;
     }
     
-    // Add admin link if user is admin
-    if (userDropdown && user.email === 'conorogle@gmail.com') {
+    // Add admin link if user is admin (use centralized config)
+    const adminEmail = window.ADMIN_EMAIL || 'conorogle@gmail.com';
+    if (userDropdown && user.email === adminEmail) {
       // Check if admin link already exists
       let adminLink = userDropdown.querySelector('.admin-link');
       if (!adminLink) {
@@ -182,28 +183,28 @@ export function closeAuthModal(event) {
  */
 export async function signInWithProvider(provider) {
   if (!supabaseClient) {
-    alert('Authentication is not configured. Please contact support.');
+    if (window.showError) {
+      window.showError('Authentication is not configured. Please contact support.');
+    } else {
+      alert('Authentication is not configured. Please contact support.');
+    }
     return;
   }
 
   try {
-    // Determine where to redirect after OAuth
-    // Preserve the current path and hash (e.g., /admin or #/admin)
-    let redirectTo = window.location.origin;
-    
-    // If we're on /admin path, redirect back to /admin
-    if (window.location.pathname === '/admin' || window.location.pathname.endsWith('/admin')) {
-      redirectTo = window.location.origin + '/admin';
-    } else if (window.location.hash === '#/admin') {
-      // If using hash routing, redirect to origin and let hash routing handle it
-      redirectTo = window.location.origin;
-    } else {
-      // Otherwise, redirect to current pathname
-      redirectTo = window.location.origin + window.location.pathname;
+    // Store the intended destination before OAuth redirect
+    const path = window.location.pathname.replace(/\/$/, '') || '/';
+    const hash = window.location.hash;
+    if (path === '/admin' || hash === '#/admin') {
+      sessionStorage.setItem('pendingAdminAccess', 'true');
     }
-    
+
+    // Always redirect to origin - the pendingAdminAccess flag will handle post-auth redirect
+    // This simplifies the flow and avoids issues with hash routing
+    const redirectTo = window.location.origin;
+
     console.log('OAuth redirectTo:', redirectTo);
-    
+
     const { data, error } = await supabaseClient.auth.signInWithOAuth({
       provider: provider,
       options: {
@@ -213,11 +214,19 @@ export async function signInWithProvider(provider) {
 
     if (error) {
       console.error('Auth error:', error);
-      alert('Failed to sign in. Please try again.');
+      if (window.showError) {
+        window.showError('Failed to sign in. Please try again.');
+      } else {
+        alert('Failed to sign in. Please try again.');
+      }
     }
   } catch (error) {
     console.error('Sign in error:', error);
-    alert('An error occurred during sign in. Please try again.');
+    if (window.showError) {
+      window.showError('An error occurred during sign in. Please try again.');
+    } else {
+      alert('An error occurred during sign in. Please try again.');
+    }
   }
 }
 
@@ -231,7 +240,11 @@ export async function signOut() {
     const { error } = await supabaseClient.auth.signOut();
     if (error) {
       console.error('Sign out error:', error);
-      alert('Failed to sign out. Please try again.');
+      if (window.showError) {
+        window.showError('Failed to sign out. Please try again.');
+      } else {
+        alert('Failed to sign out. Please try again.');
+      }
     } else {
       currentUser = null;
       updateAuthUI(null);

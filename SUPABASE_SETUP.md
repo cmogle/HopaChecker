@@ -355,11 +355,11 @@ You should see a success message. The migration creates:
 1. In **Settings** > **Authentication**
 2. Scroll to **URL Configuration**
 3. Set **Site URL** to your production application URL:
-   - **Production:** `http://graafin.club`
+   - **Production:** `https://graafin.club` (MUST be HTTPS!)
    - (For development, you can temporarily change this to `http://localhost:3000`)
 4. Add **Redirect URLs** for all environments:
    - `http://localhost:3000/**` (development)
-   - `http://graafin.club/**` (production)
+   - `https://graafin.club/**` (production - MUST be HTTPS!)
    - `https://fazdbecnxwgkvbxwlrfn.supabase.co/**` (Supabase auth callbacks)
 
 ## Step 4: Set Environment Variables
@@ -390,7 +390,7 @@ CORS_ORIGIN=*
 - `your_service_role_key_here` with your actual service role key (already set if you followed earlier steps)
 - `your_generated_admin_key_here` with your generated admin API key (already set if you followed earlier steps)
 
-**Note:** Your Supabase project reference is `fazdbecnxwgkvbxwlrfn` and production domain is `http://graafin.club`
+**Note:** Your Supabase project reference is `fazdbecnxwgkvbxwlrfn` and production domain is `https://graafin.club`
 
 ### 4.3 Example .env File
 
@@ -505,11 +505,23 @@ Once setup is complete:
 3. View athlete performance dashboards
 4. Test the following/feed features
 
-For production deployment at `http://graafin.club`, set these environment variables in your hosting platform (Render, AWS, etc.) instead of using a `.env` file.
+For production deployment at `https://graafin.club`, set these environment variables in your hosting platform (Render, AWS, etc.) instead of using a `.env` file.
 
 **Production Domain Configuration:**
-- **Production URL:** `http://graafin.club`
+- **Production URL:** `https://graafin.club` (MUST be HTTPS!)
 - **Supabase Project:** `fazdbecnxwgkvbxwlrfn`
 - Make sure all OAuth redirect URIs include both:
   - `https://fazdbecnxwgkvbxwlrfn.supabase.co/auth/v1/callback`
-  - `http://graafin.club/auth/v1/callback` (if using custom domain for auth)
+  - `https://graafin.club/auth/v1/callback` (if using custom domain for auth)
+
+## Security Notes
+
+**CRITICAL:** Never commit secrets to git! The following must be kept secret:
+- `SUPABASE_SERVICE_ROLE_KEY` - bypasses all Row Level Security
+- `ADMIN_API_KEY` - grants admin access to scraping endpoints
+- OAuth client secrets
+
+If any secrets are accidentally committed, you MUST:
+1. Rotate the key immediately in the respective dashboard
+2. Update the new key in your deployment environment (Render.com)
+3. Consider the old key compromised and monitor for unauthorized access

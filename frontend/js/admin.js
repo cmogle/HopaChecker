@@ -63,8 +63,10 @@ export async function verifyAdminAccess() {
     return false;
   }
 
+  // Use centralized admin email from config
+  const adminEmail = window.ADMIN_EMAIL || 'conorogle@gmail.com';
   console.log('User email:', user.email);
-  if (user.email !== 'conorogle@gmail.com') {
+  if (user.email !== adminEmail) {
     console.log('Email does not match admin email');
     return false;
   }

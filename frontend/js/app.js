@@ -137,34 +137,37 @@ export async function showAdminPage() {
   // Set hash first so OAuth can redirect back to it
   const path = window.location.pathname;
   const normalizedPath = path.replace(/\/$/, '') || '/';
-  
+
   // Set hash if using path-based routing
   if (normalizedPath === '/admin') {
     window.location.hash = '#/admin';
   }
-  
-  // Wait a moment for auth to potentially initialize
-  // Check if we have a session that hasn't been loaded yet
+
+  // Wait for auth to initialize with retry logic
   const { getSupabaseClient } = await import('./auth.js');
   const supabaseClient = getSupabaseClient();
-  
+
   if (supabaseClient) {
-    // Try to get session if not already loaded
-    try {
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (session && !isAuthenticated()) {
-        // Session exists but currentUser not set - update it
-        const { getCurrentUser, isAuthenticated: checkAuth } = await import('./auth.js');
-        // This will be handled by the auth state change listener, but we can trigger it
-        const { handleAuthStateChange } = await import('./auth.js');
-        // Actually, we can't import that - it's not exported. Let's just wait for it
+    // Retry session check to handle race conditions with auth initialization
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+          // Session found - give auth state listener time to update currentUser
+          await new Promise(resolve => setTimeout(resolve, 150));
+          break;
+        }
+      } catch (error) {
+        console.error('Error checking session:', error);
       }
-    } catch (error) {
-      console.error('Error checking session:', error);
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 200));
+      retries--;
     }
   }
-  
-  // Small delay to let auth state settle
+
+  // Additional delay to let auth state fully settle
   await new Promise(resolve => setTimeout(resolve, 100));
   
   // Check authentication
@@ -198,7 +201,11 @@ export async function showAdminPage() {
   const hasAccess = await verifyAdminAccess();
   
   if (!hasAccess) {
-    alert('Access denied. Admin privileges required.');
+    if (window.showError) {
+      window.showError('Access denied. Admin privileges required.');
+    } else {
+      alert('Access denied. Admin privileges required.');
+    }
     showLanding();
     return;
   }
@@ -600,21 +607,31 @@ async function followAthlete(athleteId) {
  * Load featured content (stats)
  */
 async function loadFeaturedContent() {
+  const statAthletes = document.getElementById('stat-athletes');
+  const statRaces = document.getElementById('stat-races');
+  const statEvents = document.getElementById('stat-events');
+
   try {
-    // Try to get platform stats from API
-    // For now, we'll use placeholder values
-    // TODO: Add platform stats endpoint
-    
-    const statAthletes = document.getElementById('stat-athletes');
-    const statRaces = document.getElementById('stat-races');
-    const statEvents = document.getElementById('stat-events');
-    
-    // Placeholder values - can be replaced with actual API call
-    if (statAthletes) statAthletes.textContent = '1,234';
-    if (statRaces) statRaces.textContent = '5,678';
-    if (statEvents) statEvents.textContent = '12';
+    // Fetch platform stats from API
+    const response = await fetch(`${API_BASE}/stats/platform`);
+    if (response.ok) {
+      const stats = await response.json();
+
+      // Format numbers with commas
+      const formatNumber = (num) => num.toLocaleString();
+
+      if (statAthletes) statAthletes.textContent = formatNumber(stats.athleteCount);
+      if (statRaces) statRaces.textContent = formatNumber(stats.raceCount);
+      if (statEvents) statEvents.textContent = formatNumber(stats.eventCount);
+    } else {
+      throw new Error('Failed to fetch stats');
+    }
   } catch (error) {
     console.error('Error loading featured content:', error);
+    // Fallback to placeholder values on error
+    if (statAthletes) statAthletes.textContent = '-';
+    if (statRaces) statRaces.textContent = '-';
+    if (statEvents) statEvents.textContent = '-';
   }
 }
 
